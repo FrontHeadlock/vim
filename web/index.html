@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>VimQuest — 게임으로 배우는 Vim</title>
+<style>
+  :root { --bg:#1e202a; --panel:#272a36; --accent:#4fc36b; --key:#f4d03f; --text:#e8e8e8; --muted:#9aa0b0; }
+  * { box-sizing: border-box; }
+  body {
+    margin:0; background:var(--bg); color:var(--text);
+    font-family: -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    display:flex; flex-direction:column; align-items:center; min-height:100vh;
+  }
+  header { text-align:center; padding:16px 12px 4px; }
+  header h1 { margin:0; font-size:22px; letter-spacing:.5px; }
+  header h1 span { color:var(--accent); }
+  header p { margin:4px 0 0; color:var(--muted); font-size:13px; }
+
+  #panel {
+    width:960px; max-width:96vw; background:var(--panel);
+    border-radius:10px; padding:14px 18px; margin:10px 0;
+  }
+  #level-title { font-size:18px; font-weight:700; color:var(--key); }
+  #hint { margin-top:6px; font-size:15px; line-height:1.5; }
+  #status { margin-top:8px; font-size:14px; color:var(--accent); min-height:18px; }
+
+  /* Ebiten 이 생성하는 canvas */
+  canvas { border-radius:10px; box-shadow:0 8px 30px rgba(0,0,0,.4); }
+
+  #ime-warning {
+    display:none; width:960px; max-width:96vw; margin:8px 0;
+    background:#5a2730; color:#ffd9dd; border:1px solid #e54b4b;
+    border-radius:8px; padding:10px 14px; font-size:14px;
+  }
+  #ime-warning b { color:#fff; }
+
+  footer { color:var(--muted); font-size:12px; margin:14px 0 30px; text-align:center; }
+  kbd {
+    background:#11131a; border:1px solid #3a3f4e; border-bottom-width:2px;
+    border-radius:5px; padding:1px 7px; font-family:ui-monospace, Menlo, monospace; font-size:13px;
+  }
+
+  /* 치트시트 오버레이 */
+  #cheatsheet {
+    display:none; position:fixed; inset:0; background:rgba(0,0,0,.78);
+    z-index:50; align-items:center; justify-content:center;
+  }
+  #cheatsheet.show { display:flex; }
+  #cheatsheet .card {
+    background:var(--panel); border-radius:12px; padding:24px 30px; width:520px; max-width:92vw;
+  }
+  #cheatsheet h2 { margin:0 0 14px; }
+  #cheatsheet table { width:100%; border-collapse:collapse; font-size:15px; }
+  #cheatsheet td { padding:6px 4px; border-bottom:1px solid #333845; }
+  #cheatsheet td:first-child { width:120px; color:var(--key); font-family:ui-monospace, monospace; }
+  #cheatsheet .close { margin-top:16px; color:var(--muted); font-size:13px; text-align:right; }
+</style>
+</head>
+<body>
+  <header>
+    <h1><span>Vim</span>Quest</h1>
+    <p>게임으로 배우는 Vim — 키를 모으고 텍스트 세계를 탐험하세요</p>
+  </header>
+
+  <div id="ime-warning">
+    🇰🇷 → 🇺🇸 &nbsp;<b>한글 입력 상태가 감지되었습니다.</b>
+    키보드를 <b>영문 입력</b>으로 바꿔야 게임이 동작해요. (한/영 키를 눌러주세요)
+  </div>
+
+  <div id="panel">
+    <div id="level-title">불러오는 중…</div>
+    <div id="hint">잠시만 기다려주세요.</div>
+    <div id="status"></div>
+  </div>
+
+  <!-- Ebiten 캔버스가 여기 아래(body)에 자동 생성됩니다 -->
+
+  <footer>
+    이동 <kbd>h</kbd><kbd>j</kbd><kbd>k</kbd><kbd>l</kbd> &nbsp;·&nbsp;
+    단어점프 <kbd>w</kbd><kbd>b</kbd><kbd>e</kbd> &nbsp;·&nbsp;
+    버그제거 <kbd>x</kbd> &nbsp;·&nbsp;
+    리셋 <kbd>r</kbd> &nbsp;·&nbsp;
+    치트시트 <kbd>Ctrl</kbd>+<kbd>/</kbd>
+  </footer>
+
+  <div id="cheatsheet" onclick="this.classList.remove('show')">
+    <div class="card" onclick="event.stopPropagation()">
+      <h2>📜 Vim 치트시트</h2>
+      <table>
+        <tr><td>h j k l</td><td>왼 / 아래 / 위 / 오른쪽 한 칸 이동</td></tr>
+        <tr><td>w</td><td>다음 단어의 시작으로 점프</td></tr>
+        <tr><td>b</td><td>이전 단어의 시작으로 점프</td></tr>
+        <tr><td>e</td><td>단어의 끝으로 점프</td></tr>
+        <tr><td>x</td><td>커서 아래 글자 삭제 (버그 제거)</td></tr>
+        <tr><td>r</td><td>현재 레벨 다시 시작</td></tr>
+      </table>
+      <div class="close">바깥을 클릭하거나 <kbd>Ctrl</kbd>+<kbd>/</kbd> 로 닫기</div>
+    </div>
+  </div>
+
+<script src="wasm_exec.js"></script>
+<script>
+  // 한글 IME 감지 — 조합 입력이나 한글 키가 들어오면 경고 표시
+  const imeWarn = document.getElementById('ime-warning');
+  function isHangul(key){ return /[㄰-㆏가-힣]/.test(key); }
+  window.addEventListener('keydown', (e) => {
+    if (e.isComposing || e.keyCode === 229 || isHangul(e.key)) {
+      imeWarn.style.display = 'block';
+    }
+  }, true);
+
+  // 치트시트 토글 (Ctrl + /)
+  const sheet = document.getElementById('cheatsheet');
+  window.addEventListener('keydown', (e) => {
+    if (e.ctrlKey && e.key === '/') { e.preventDefault(); sheet.classList.toggle('show'); }
+  });
+
+  // WASM 로드
+  const go = new Go();
+  WebAssembly.instantiateStreaming(fetch('game.wasm'), go.importObject)
+    .then((res) => { go.run(res.instance); })
+    .catch((err) => {
+      document.getElementById('hint').textContent = '게임 로드 실패: ' + err;
+    });
+</script>
+</body>
+</html>
