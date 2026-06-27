@@ -1,27 +1,41 @@
 package main
 
-// Level 은 하나의 Vim 버퍼(텍스트 맵)와 학습 목표를 표현한다.
-// 게임 보드는 곧 Vim 버퍼다 — 커서가 실제 Vim처럼 텍스트 위를 움직인다.
-//
-// 맵 글자 범례:
-//
-//	@  플레이어(커서) 시작 위치
-//	.  바닥(걸어다닐 수 있음)
-//	K  열쇠 — 위로 이동하면 자동 획득
-//	*  버그 — 그 위에서 x 를 눌러 제거
-//	$  출구 — 모든 열쇠 획득 + 모든 버그 제거 후 도달하면 클리어
-//	(공백) 빈 칸 — 단어 점프(w/b/e) 학습용 구분자
-type Level struct {
-	Title string   // 한국어 레벨 제목 (DOM 으로 전달)
-	Hint  string   // 한국어 힌트 (DOM 으로 전달)
-	Map   []string // 텍스트 버퍼
+// Cmd is one "command + description" line shown in the top-right HINT panel.
+// Instead of handing over the full answer sequence, it lists the commands used in
+// this level and what they do, so the player composes the solution themselves.
+type Cmd struct {
+	K string // key (e.g. "w", "dw", "f{char}")
+	D string // English description
 }
 
-// W1 "이동의 숲" — MVP 3개 레벨.
+// Level is one stage. Two kinds:
+//
+//	"navigate" — move the cursor to collect keys (K) and remove bugs (*) with x, then reach exit ($).
+//	             map glyphs: @ start · . floor · K key · * bug · $ exit · (space) word separator.
+//	"edit"     — transform the buffer to match Target exactly (VimGolf style).
+//	             Solution is the verified answer used by tests to confirm solvability (hidden in-game).
+type Level struct {
+	Title    string
+	Hint     string // the goal + which kind of command to use (NOT the literal answer)
+	Cmds     []Cmd  // command palette for this level
+	Kind     string // "navigate" | "edit"
+	Map      []string
+	Target   []string // edit only
+	Solution string   // edit only (verification, hidden)
+}
+
 var levels = []Level{
+	// ───────────────────────── W1  The Moving Woods (basic motion) ─────────────────────────
 	{
-		Title: "1-1  첫 발걸음",
-		Hint:  "hjkl 로 이동하세요.  h=←  j=↓  k=↑  l=→ .  K(열쇠)를 줍고 $(출구)로 가세요.",
+		Kind:  "navigate",
+		Title: "1-1  First Steps",
+		Hint:  "Grab the K (key), then reach the $ (exit). Use hjkl instead of the arrow keys to move.",
+		Cmds: []Cmd{
+			{"h", "← left one cell"},
+			{"j", "↓ down one"},
+			{"k", "↑ up one"},
+			{"l", "→ right one"},
+		},
 		Map: []string{
 			"@.........",
 			"..........",
@@ -31,19 +45,260 @@ var levels = []Level{
 		},
 	},
 	{
-		Title: "1-2  단어 점프",
-		Hint:  "l 을 연타하지 말고 w 를 눌러 단어 단위로 점프!  b=뒤 단어,  e=단어 끝.  열쇠를 줍고 $로.",
+		Kind:  "navigate",
+		Title: "1-2  Word Jumps",
+		Hint:  "Don't crawl one cell at a time — jump word by word. Grab the key and head to $.",
+		Cmds: []Cmd{
+			{"w", "jump to start of next word"},
+			{"b", "to start of previous word"},
+			{"e", "to end of word"},
+		},
 		Map: []string{
 			"@start  the  long  road  K  to  the  exit  $",
 		},
 	},
 	{
-		Title: "1-3  버그 잡기",
-		Hint:  "*(버그) 위로 이동해 x 로 제거하세요.  모든 버그를 잡고 K를 주운 뒤 $로 가면 클리어!",
-		Map: []string{
-			"@..*....K..*..$",
-			"......*.......",
-			"..*........*..",
+		Kind:  "navigate",
+		Title: "1-3  Start & End of Line",
+		Hint:  "The keys sit at both ends of the line. Use the keys that jump straight to the start/end.",
+		Cmds: []Cmd{
+			{"0", "to start of line"},
+			{"$", "to end of line"},
+			{"^", "to first non-blank char"},
+			{"j k", "move down/up a line"},
 		},
+		Map: []string{
+			"@...........K",
+			".............",
+			"K...........$",
+		},
+	},
+	{
+		Kind:  "navigate",
+		Title: "1-4  Find a Character",
+		Hint:  "Use a find command to leap directly to a far-off character (K, $).",
+		Cmds: []Cmd{
+			{"f{char}", "leap to that char on this line (e.g. fK)"},
+			{";", "repeat the last find once more"},
+		},
+		Map: []string{
+			"@....K..........$",
+		},
+	},
+	{
+		Kind:  "navigate",
+		Title: "1-5  Bug Hunt",
+		Hint:  "Bugs (*) are killed by moving onto them and pressing the delete key. Dart up and down, clear them all, then grab the key and exit.",
+		Cmds: []Cmd{
+			{"gg", "warp to first line"},
+			{"G", "warp to last line"},
+			{"x", "delete char under cursor (kill bug)"},
+			{"h j k l", "move one cell"},
+		},
+		Map: []string{
+			"@..*......",
+			".....K....",
+			"..*.......",
+			".........$",
+		},
+	},
+
+	// ───────────────────────── W2  Jump Canyon (fast motion) ─────────────────────────
+	{
+		Kind:  "navigate",
+		Title: "2-1  Repeat Jumps",
+		Hint:  "There's a key that repeats your last find. Find once, then repeat to skip across the dots.",
+		Cmds: []Cmd{
+			{"f{char}", "jump to that char (e.g. f.)"},
+			{";", "repeat find (forward)"},
+			{",", "repeat find (backward)"},
+		},
+		Map: []string{
+			"@a.b.c.d.K.e.f.g.$",
+		},
+	},
+	{
+		Kind:  "navigate",
+		Title: "2-2  Jump by Number",
+		Hint:  "Jumping by line number makes vertical travel fast. Clear the bugs and reach the key/exit.",
+		Cmds: []Cmd{
+			{"{N}G", "jump to line N (e.g. 4G)"},
+			{"gg", "to first line"},
+			{"G", "to last line"},
+			{"x", "delete bug"},
+		},
+		Map: []string{
+			"@.........",
+			"....*.....",
+			"..........",
+			"......K...",
+			"..........",
+			"*.........",
+			".........$",
+		},
+	},
+	{
+		Kind:  "navigate",
+		Title: "2-3  Canyon Run",
+		Hint:  "Use everything you've learned! Grab the keys at both ends and find the fastest path to the exit.",
+		Cmds: []Cmd{
+			{"w", "word jump"},
+			{"f{char}", "jump to char"},
+			{"0 $", "start / end of line"},
+			{"gg G", "first / last line"},
+		},
+		Map: []string{
+			"@one  two  three  K",
+			"..................",
+			"K  four  five  six  $",
+		},
+	},
+
+	// ───────────────────────── W3  The Editing Dungeon (operators + Insert) ─────────────────────────
+	{
+		Kind:  "edit",
+		Title: "3-1  Fix Typos with x",
+		Hint:  "Too many letters (a typo). Move onto the extra letters and delete them to match the target on the right.",
+		Cmds: []Cmd{
+			{"f{char}", "jump to the typo"},
+			{"x", "delete one char under cursor"},
+			{"h l", "move left/right"},
+		},
+		Map:      []string{"hellllo world"},
+		Target:   []string{"hello world"},
+		Solution: "flxx",
+	},
+	{
+		Kind:  "edit",
+		Title: "3-2  Delete Lines with dd",
+		Hint:  "Some lines aren't needed. Move to them and delete whole lines to leave only the target.",
+		Cmds: []Cmd{
+			{"j", "down a line"},
+			{"k", "up a line"},
+			{"dd", "delete the whole current line"},
+		},
+		Map:      []string{"good line", "DELETE THIS", "another good", "DELETE THIS"},
+		Target:   []string{"good line", "another good"},
+		Solution: "jddjdd",
+	},
+	{
+		Kind:  "edit",
+		Title: "3-3  Delete Words with dw",
+		Hint:  "An unwanted word is wedged in the sentence. Use 'delete operator d + word motion w' to remove it whole.",
+		Cmds: []Cmd{
+			{"w", "move by word"},
+			{"d", "delete operator (takes a motion)"},
+			{"dw", "delete one word from cursor"},
+		},
+		Map:      []string{"hello cruel world"},
+		Target:   []string{"hello world"},
+		Solution: "wdw",
+	},
+	{
+		Kind:  "edit",
+		Title: "3-4  Append Text with A",
+		Hint:  "You need to append text to the end of the line. Enter insert mode, type, then press Esc to leave it.",
+		Cmds: []Cmd{
+			{"A", "start typing at end of line (Insert)"},
+			{"(type)", "enter your text"},
+			{"Esc", "leave insert → Normal"},
+		},
+		Map:      []string{"Hello"},
+		Target:   []string{"Hello, World!"},
+		Solution: "A, World!<esc>",
+	},
+	{
+		Kind:  "edit",
+		Title: "3-5  Replace a Word with cw",
+		Hint:  "Just one word needs swapping. The 'change operator c' deletes and drops you straight into insert.",
+		Cmds: []Cmd{
+			{"w", "move to the word"},
+			{"cw", "delete the word and start typing"},
+			{"Esc", "leave insert"},
+		},
+		Map:      []string{"fix THIS word"},
+		Target:   []string{"fix that word"},
+		Solution: "wcwthat<esc>",
+	},
+	{
+		Kind:  "edit",
+		Title: "3-6  Repeat with .",
+		Hint:  "All three words must become the same word. Use the key that repeats your last change to fly through it.",
+		Cmds: []Cmd{
+			{"cw", "delete word and type"},
+			{"Esc", "leave insert"},
+			{"w", "to next word"},
+			{".", "repeat the last change"},
+		},
+		Map:      []string{"foo foo foo"},
+		Target:   []string{"bar bar bar"},
+		Solution: "cwbar<esc>w.w.",
+	},
+
+	// ───────────────────────── W4  Temple of Text Objects (advanced editing) ─────────────────────────
+	{
+		Kind:  "edit",
+		Title: "4-1  Delete a Whole Word with daw",
+		Hint:  "Delete a single word, trailing space and all. Use the 'a word' text object with the delete operator.",
+		Cmds: []Cmd{
+			{"w", "move to the word"},
+			{"daw", "delete a word incl. its space"},
+		},
+		Map:      []string{"one BAD two"},
+		Target:   []string{"one two"},
+		Solution: "wdaw",
+	},
+	{
+		Kind:  "edit",
+		Title: "4-2  Change Inside ( ) with ci(",
+		Hint:  "Only the contents inside the ( ) need changing. Use the 'inner' text object to target just inside the parentheses.",
+		Cmds: []Cmd{
+			{"f{char}", "move to ( (e.g. f( )"},
+			{"ci(", "change inside the parentheses"},
+			{"Esc", "leave insert"},
+		},
+		Map:      []string{"call(oldArg)"},
+		Target:   []string{"call(newArg)"},
+		Solution: "f(ci(newArg<esc>",
+	},
+	{
+		Kind:  "edit",
+		Title: "4-3  Change Inside \" \" with ci\"",
+		Hint:  "Only the text inside the \" \" needs changing. Use the text object that selects inside the quotes.",
+		Cmds: []Cmd{
+			{"f{char}", "move to \""},
+			{"ci\"", "change inside the quotes"},
+			{"Esc", "leave insert"},
+		},
+		Map:      []string{"title = \"old\""},
+		Target:   []string{"title = \"new\""},
+		Solution: "f\"ci\"new<esc>",
+	},
+	{
+		Kind:  "edit",
+		Title: "4-4  Duplicate a Line with yy/p",
+		Hint:  "You need one more copy of the line. Copy (yank) the line and paste it to duplicate.",
+		Cmds: []Cmd{
+			{"yy", "copy (yank) the line"},
+			{"p", "paste the copied line below"},
+		},
+		Map:      []string{"duplicate me"},
+		Target:   []string{"duplicate me", "duplicate me"},
+		Solution: "yyp",
+	},
+	{
+		Kind:  "edit",
+		Title: "4-5  Boss: ciw + . Combo",
+		Hint:  "Turn both OLD into 42! Change one line, then use the 'repeat' key to do the next line the same way.",
+		Cmds: []Cmd{
+			{"$", "to end of line"},
+			{"ciw", "change the word under cursor"},
+			{"Esc", "leave insert"},
+			{"j", "down a line"},
+			{".", "repeat the last change"},
+		},
+		Map:      []string{"x = OLD", "y = OLD"},
+		Target:   []string{"x = 42", "y = 42"},
+		Solution: "$ciw42<esc>j$.",
 	},
 }
