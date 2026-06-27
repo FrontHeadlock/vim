@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>VimQuest — Learn Vim by Playing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+<style>
+  /* ── retro terminal palette (matches the game) ── */
+  :root{
+    --bg:#1e202a; --bg2:#14161d; --panel:#272b36; --panel2:#2f3340; --bar:#343a48;
+    --line:#454b5c; --floor:#5a6072;
+    --text:#f0f0f0; --muted:#aab0c0;
+    --green:#5fd07b; --yellow:#f6d84f; --red:#e85c5c; --cyan:#56b6e0;
+    --ui:'VT323','Courier New',monospace;       /* 90s terminal body font */
+    --pixel:'Press Start 2P','VT323',monospace;  /* 8-bit titles */
+    --code:'Menlo','Consolas','DejaVu Sans Mono',monospace; /* strict mono for ASCII art */
+  }
+  *{ box-sizing:border-box; border-radius:0 !important; }
+  html,body{ margin:0; background:var(--bg2); }
+  body{
+    color:var(--text); font-family:var(--ui); font-size:19px; line-height:1.35;
+    display:flex; flex-direction:column; align-items:center; min-height:100vh;
+    image-rendering:pixelated; -webkit-font-smoothing:none; font-smooth:never;
+  }
+  /* CRT scanlines (lighter so panels stay readable) + vignette */
+  body::before{
+    content:""; position:fixed; inset:0; z-index:9999; pointer-events:none;
+    background:repeating-linear-gradient(0deg, rgba(0,0,0,.10) 0 1px, transparent 1px 3px);
+    mix-blend-mode:multiply;
+  }
+  body::after{
+    content:""; position:fixed; inset:0; z-index:9998; pointer-events:none;
+    box-shadow:inset 0 0 150px rgba(0,0,0,.5);
+  }
+
+  .blink{ animation:blink 1.05s steps(1) infinite; }
+  @keyframes blink{ 50%{ opacity:0; } }
+
+  /* ── terminal window ── */
+  .win{ border:2px solid var(--line); background:var(--panel); }
+  .win > .winbar{
+    background:var(--bar); border-bottom:2px solid var(--line);
+    padding:8px 11px; display:flex; align-items:center; justify-content:space-between;
+  }
+  .win > .winbar .t{ font-family:var(--pixel); font-size:10px; color:var(--green); letter-spacing:.5px; }
+  .win > .winbar .r{ font-size:16px; color:var(--muted); }
+  .win > .winbody{ padding:13px 15px; }
+
+  /* ── bracket buttons ── */
+  .btn{
+    font-family:var(--ui); font-size:18px; cursor:pointer; line-height:1;
+    background:transparent; color:var(--cyan); border:2px solid var(--cyan); padding:6px 12px;
+  }
+  .btn::before{ content:"[ "; } .btn::after{ content:" ]"; }
+  .btn:hover{ background:var(--cyan); color:var(--bg2); }
+  .btn.g{ color:var(--green); border-color:var(--green); }
+  .btn.g:hover{ background:var(--green); color:var(--bg2); }
+  .btn.y{ color:var(--yellow); border-color:var(--yellow); }
+  .btn.y:hover{ background:var(--yellow); color:var(--bg2); }
+  .btn.sm{ font-size:11px; font-family:var(--pixel); padding:6px 9px; }
+
+  kbd{ font-family:var(--code); font-size:14px; color:var(--yellow); border:1px solid var(--line); padding:0 5px; background:var(--bg2); }
+  code{ font-family:var(--code); font-size:15px; color:var(--yellow); }
+
+  /* ── header ── */
+  header{ text-align:center; padding:20px 12px 6px; }
+  header .wordmark{ font-family:var(--pixel); font-size:24px; color:var(--green); margin:0;
+    text-shadow:3px 3px 0 #0c1a10; }
+  header p{ margin:12px 0 0; color:var(--muted); font-size:18px; }
+
+  /* ── main status panel ── */
+  #panel{ width:960px; max-width:96vw; margin:12px 0; }
+  #level-title{ color:var(--yellow); font-size:23px; }
+  #hint{ margin-top:8px; font-size:19px; line-height:1.4; color:var(--text); }
+  #status{ margin-top:8px; font-size:18px; color:var(--green); min-height:20px; }
+  #controls{ margin-top:14px; display:flex; gap:8px; flex-wrap:wrap; }
+
+  /* ── game canvas frame ── */
+  canvas{ border:2px solid var(--line); box-shadow:0 0 0 5px var(--bg2),0 0 40px rgba(0,0,0,.55); }
+
+  /* ── IME warning ── */
+  #ime-warning{
+    display:none; width:960px; max-width:96vw; margin:8px 0;
+    border:2px solid var(--red); background:#3a1418; color:#ffd9dd; padding:10px 13px; font-size:18px;
+  }
+  #ime-warning b{ color:#fff; }
+
+  footer{ color:var(--muted); font-size:16px; margin:16px 0 36px; text-align:center; line-height:2; }
+
+  /* ── top-right HINT panel (more opaque for readability) ── */
+  #solve-panel{ position:fixed; top:14px; right:14px; width:318px; z-index:40;
+    background:var(--panel); box-shadow:0 6px 26px rgba(0,0,0,.6); }
+  #solve-panel .winbar{ cursor:pointer; user-select:none; }
+  #solve-panel .winbar .t{ color:var(--yellow); }
+  #solve-panel.collapsed .winbody{ display:none; }
+  #solve-cmds .cmd{ display:flex; gap:10px; padding:5px 0; align-items:baseline; }
+  #solve-cmds .cmd + .cmd{ border-top:1px dotted #353b49; }
+  #solve-cmds .k{ font-family:var(--code); font-size:15px; color:var(--green); min-width:86px; white-space:nowrap; }
+  #solve-cmds .d{ color:var(--text); font-size:17px; line-height:1.3; }
+  .solve-foot{ margin-top:11px; font-size:15px; color:var(--muted); line-height:1.35;
+    border-top:1px dashed var(--line); padding-top:9px; }
+
+  /* ── modals (more opaque backdrop) ── */
+  .overlay{ position:fixed; inset:0; z-index:100; background:rgba(8,9,13,.97);
+    display:flex; align-items:flex-start; justify-content:center; overflow-y:auto; padding:28px 16px; }
+  .overlay.hidden{ display:none; }
+  .overlay .win{ background:var(--panel); box-shadow:0 10px 40px rgba(0,0,0,.7); }
+
+  /* ── intro (manual) ── */
+  #intro .win{ width:780px; max-width:96vw; }
+  #intro pre.banner{ margin:0 0 6px; color:var(--green); font-family:var(--code); font-size:11px; line-height:1.1; overflow-x:auto; }
+  #intro .lead{ color:var(--muted); margin:10px 0 4px; font-size:18px; line-height:1.4; }
+  #intro .lead b{ color:var(--text); }
+  #intro h3{ margin:18px 0 6px; font-family:var(--pixel); font-size:11px; color:var(--yellow); letter-spacing:.5px; }
+  #intro h3::before{ content:"> "; color:var(--green); }
+  #intro table{ width:100%; border-collapse:collapse; font-size:18px; }
+  #intro td{ padding:4px 6px; border-bottom:1px solid #313744; vertical-align:top; }
+  #intro td:first-child{ width:140px; color:var(--cyan); font-family:var(--code); font-size:15px; white-space:nowrap; }
+  #intro .modes{ display:flex; gap:10px; margin:8px 0 2px; flex-wrap:wrap; }
+  #intro .mode{ flex:1; min-width:230px; border:2px solid var(--line); background:var(--bg2); padding:11px 13px; font-size:17px; line-height:1.35; }
+  #intro .mode b{ color:var(--yellow); }
+  #intro .startwrap{ margin-top:22px; text-align:center; }
+  #intro .start{ font-size:13px; font-family:var(--pixel); padding:13px 22px; }
+  #intro .warn{ color:#e5a3a8; font-size:16px; text-align:center; margin-top:12px; }
+  .lang-only{ }
+
+  /* ── cheatsheet ── */
+  #cheatsheet{ display:none; }
+  #cheatsheet.show{ display:flex; }
+  #cheatsheet .win{ width:620px; max-width:94vw; max-height:86vh; overflow-y:auto; }
+  #cheatsheet table{ width:100%; border-collapse:collapse; font-size:18px; }
+  #cheatsheet td{ padding:4px 4px; border-bottom:1px solid #313744; }
+  #cheatsheet td:first-child{ width:160px; color:var(--green); font-family:var(--code); font-size:15px; }
+  #cheatsheet td.grp{ color:var(--yellow); font-family:var(--pixel); font-size:10px; padding-top:13px; border-bottom:2px solid var(--line); }
+  #cheatsheet .foot{ margin-top:14px; color:var(--muted); font-size:16px; text-align:right; }
+</style>
+</head>
+<body>
+
+  <!-- top-right: commands for this level -->
+  <div id="solve-panel" class="win">
+    <div class="winbar" onclick="document.getElementById('solve-panel').classList.toggle('collapsed')">
+      <span class="t">HINT</span>
+      <span class="r">[+/-]</span>
+    </div>
+    <div class="winbody">
+      <div id="solve-cmds"></div>
+      <div class="solve-foot">Combine these commands to solve it yourself — finding the answer is the fun part!</div>
+    </div>
+  </div>
+
+  <!-- start intro: basic Vim manual (KO/EN toggle) -->
+  <div id="intro" class="overlay">
+    <div class="win">
+      <div class="winbar">
+        <span class="t">MANUAL.txt</span>
+        <span><button class="btn sm" id="lang-btn" onclick="toggleLang()">한국어</button></span>
+      </div>
+      <div class="winbody">
+<pre class="banner">
+ __     ___            ___                  _
+ \ \   / (_)_ __ ___  / _ \ _   _  ___  ___| |_
+  \ \ / /| | '_ ` _ \| | | | | | |/ _ \/ __| __|
+   \ V / | | | | | | | |_| | |_| |  __/\__ \ |_
+    \_/  |_|_| |_| |_|\__\_\\__,_|\___||___/\__|
+</pre>
+
+        <!-- ENGLISH -->
+        <div id="manual-en">
+          <p class="lead">
+            Vim edits text with the <b>keyboard only</b>. The whole point is doing everything without a mouse,
+            barely moving your fingers. Learn the basics before you start. During play, the
+            <b>HINT panel</b> (top-right) always lists the commands for the current level.
+          </p>
+          <div class="modes">
+            <div class="mode"><b>NORMAL mode</b><br>The default state for moving &amp; issuing commands. Letter keys act as 'commands'. (The game starts here.)</div>
+            <div class="mode"><b>INSERT mode</b><br>Enter with <code>i a o</code> to actually type text. When done, always press <kbd>Esc</kbd> to return to NORMAL!</div>
+          </div>
+          <h3>Move (NORMAL)</h3>
+          <table>
+            <tr><td>h  j  k  l</td><td>left / down / up / right one cell — Vim's arrow keys</td></tr>
+            <tr><td>w  b  e</td><td>jump to next word / previous word / end of word</td></tr>
+            <tr><td>0  ^  $</td><td>start of line / first non-blank / end of line</td></tr>
+            <tr><td>f{char}</td><td>leap to that char on the line ( <code>;</code> repeats )</td></tr>
+            <tr><td>gg  G  3G</td><td>first line / last line / line 3</td></tr>
+          </table>
+          <h3>Edit — "operator + motion" is Vim's grammar</h3>
+          <table>
+            <tr><td>x</td><td>delete one char under the cursor</td></tr>
+            <tr><td>d + motion</td><td>delete. <code>dw</code>=word, <code>d$</code>=to line end, <code>dd</code>=whole line</td></tr>
+            <tr><td>c + motion</td><td>change (delete then INSERT). <code>cw</code>=word, <code>cc</code>=line</td></tr>
+            <tr><td>y + motion / p</td><td>yank (copy) / paste. <code>yy</code>=copy line</td></tr>
+            <tr><td>diw ci( ci"</td><td>text objects: word / inside ( ) / inside " "</td></tr>
+          </table>
+          <h3>Insert &amp; Misc</h3>
+          <table>
+            <tr><td>i  a  A  o</td><td>start typing: before / after / line-end / new line below — then <kbd>Esc</kbd></td></tr>
+            <tr><td>u  ·  Ctrl-r</td><td>undo / redo</td></tr>
+            <tr><td>.</td><td>repeat your last change (Vim's magic!)</td></tr>
+          </table>
+        </div>
+
+        <!-- KOREAN -->
+        <div id="manual-ko" style="display:none">
+          <p class="lead">
+            Vim 은 <b>키보드만으로</b> 텍스트를 편집해요. 핵심은 마우스 없이, 손가락을 거의 안 움직이고
+            모든 걸 해내는 것. 시작 전에 기본 조작만 익히고 가요. 게임 중엔 우측 상단
+            <b>HINT 패널</b>이 현재 레벨의 명령어를 항상 알려줍니다.
+          </p>
+          <div class="modes">
+            <div class="mode"><b>NORMAL 모드</b><br>이동하고 명령하는 기본 상태. 글자 키가 '명령'으로 동작해요. (게임은 여기서 시작)</div>
+            <div class="mode"><b>INSERT 모드</b><br><code>i a o</code> 등으로 진입해 실제로 타이핑. 끝나면 꼭 <kbd>Esc</kbd> 로 NORMAL 복귀!</div>
+          </div>
+          <h3>이동 (NORMAL)</h3>
+          <table>
+            <tr><td>h  j  k  l</td><td>왼쪽 / 아래 / 위 / 오른쪽 한 칸 — Vim 의 방향키</td></tr>
+            <tr><td>w  b  e</td><td>다음 단어 / 이전 단어 / 단어 끝으로 점프</td></tr>
+            <tr><td>0  ^  $</td><td>줄 맨 앞 / 첫 글자 / 줄 맨 끝</td></tr>
+            <tr><td>f{글자}</td><td>이 줄에서 그 글자로 순간이동 ( <code>;</code> 로 반복 )</td></tr>
+            <tr><td>gg  G  3G</td><td>첫 줄 / 마지막 줄 / 3번째 줄로</td></tr>
+          </table>
+          <h3>편집 — "연산자 + 모션" 이 Vim 의 문법</h3>
+          <table>
+            <tr><td>x</td><td>커서 아래 글자 한 개 삭제</td></tr>
+            <tr><td>d + 모션</td><td>삭제. <code>dw</code>=단어, <code>d$</code>=줄끝까지, <code>dd</code>=줄 전체</td></tr>
+            <tr><td>c + 모션</td><td>바꾸기(삭제 후 INSERT). <code>cw</code>=단어, <code>cc</code>=줄</td></tr>
+            <tr><td>y + 모션 / p</td><td>복사(yank) / 붙여넣기(paste). <code>yy</code>=줄 복사</td></tr>
+            <tr><td>diw ci( ci"</td><td>텍스트 객체: 단어 / 괄호 안 / 따옴표 안</td></tr>
+          </table>
+          <h3>입력 · 기타</h3>
+          <table>
+            <tr><td>i  a  A  o</td><td>입력 시작: 앞 / 뒤 / 줄끝 / 아래 새 줄 — 입력 후 <kbd>Esc</kbd></td></tr>
+            <tr><td>u  ·  Ctrl-r</td><td>되돌리기 / 다시 실행</td></tr>
+            <tr><td>.</td><td>방금 한 변경을 그대로 반복 (Vim 의 마법!)</td></tr>
+          </table>
+        </div>
+
+        <div class="startwrap">
+          <button class="btn g start" onclick="document.getElementById('intro').classList.add('hidden')">▶ START GAME</button>
+          <p class="warn" id="intro-warn">⚠ Keys work only in English input mode (check your 한/영 key)</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <header>
+    <h1 class="wordmark">VimQuest</h1>
+    <p>Collect keys and explore the text world <span class="blink">▋</span></p>
+  </header>
+
+  <div id="ime-warning">
+    🇰🇷→🇺🇸 <b>Korean (Hangul) input detected.</b>
+    Switch to <b>English input</b> (the 한/영 key) — keys won't work otherwise.
+  </div>
+
+  <div id="panel" class="win">
+    <div class="winbar"><span class="t">STAGE</span><span class="r">hjkl = ← ↓ ↑ →</span></div>
+    <div class="winbody">
+      <div id="level-title">Loading…</div>
+      <div id="hint">Please wait.</div>
+      <div id="status"></div>
+      <div id="controls">
+        <button class="btn" onclick="window.vimquestReset && window.vimquestReset()">↺ RESET</button>
+        <button class="btn" onclick="window.vimquestRestart && window.vimquestRestart()">⏮ RESTART</button>
+        <button class="btn y" onclick="document.getElementById('cheatsheet').classList.add('show')">📜 CHEATSHEET</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ebiten canvas is auto-created below in <body> -->
+
+  <footer>
+    move <kbd>h</kbd><kbd>j</kbd><kbd>k</kbd><kbd>l</kbd> &nbsp; word <kbd>w</kbd><kbd>b</kbd><kbd>e</kbd> &nbsp;
+    find <kbd>f</kbd><kbd>t</kbd> &nbsp; edit <kbd>d</kbd><kbd>c</kbd><kbd>y</kbd>+motion &nbsp;
+    insert <kbd>i</kbd><kbd>a</kbd><kbd>o</kbd> &nbsp; undo <kbd>u</kbd> &nbsp; repeat <kbd>.</kbd>
+    &nbsp; cheatsheet <kbd>Ctrl</kbd>+<kbd>/</kbd>
+  </footer>
+
+  <div id="cheatsheet" class="overlay" onclick="this.classList.remove('show')">
+    <div class="win" onclick="event.stopPropagation()">
+      <div class="winbar"><span class="t">CHEATSHEET.txt</span><span class="r">esc to close</span></div>
+      <div class="winbody">
+      <table>
+        <tr><td class="grp" colspan="2">MOVE</td></tr>
+        <tr><td>h j k l</td><td>left / down / up / right one cell</td></tr>
+        <tr><td>w b e</td><td>next word / prev word / end of word</td></tr>
+        <tr><td>0 ^ $</td><td>line start / first char / line end</td></tr>
+        <tr><td>f{x} t{x}</td><td>jump to x / just before x (; , repeat)</td></tr>
+        <tr><td>gg G 3G</td><td>first line / last line / line 3</td></tr>
+        <tr><td class="grp" colspan="2">EDIT (operator + motion)</td></tr>
+        <tr><td>d c y</td><td>delete / change / yank — + motion/object</td></tr>
+        <tr><td>dw d$ dd</td><td>word / to line-end / whole line</td></tr>
+        <tr><td>cw cc</td><td>change word / line then insert</td></tr>
+        <tr><td>x ~ r{z}</td><td>delete char / toggle case / replace with z</td></tr>
+        <tr><td class="grp" colspan="2">TEXT OBJECTS (i=inner, a=around)</td></tr>
+        <tr><td>diw daw</td><td>delete word (with space = aw)</td></tr>
+        <tr><td>ci( ci" ci{</td><td>change inside ( ) " " { }</td></tr>
+        <tr><td class="grp" colspan="2">INSERT · COPY · MISC</td></tr>
+        <tr><td>i a o O A I</td><td>enter insert mode (Esc to leave)</td></tr>
+        <tr><td>yy p P</td><td>copy line / paste below·above</td></tr>
+        <tr><td>v V</td><td>visual select → d y c</td></tr>
+        <tr><td>u Ctrl-r .</td><td>undo / redo / repeat last change</td></tr>
+      </table>
+      <div class="foot">Click outside or press <kbd>Ctrl</kbd>+<kbd>/</kbd> to close</div>
+      </div>
+    </div>
+  </div>
+
+<script src="wasm_exec.js"></script>
+<script>
+  // KO/EN manual toggle
+  function toggleLang(){
+    const en = document.getElementById('manual-en');
+    const ko = document.getElementById('manual-ko');
+    const btn = document.getElementById('lang-btn');
+    const warn = document.getElementById('intro-warn');
+    const showKo = en.style.display !== 'none';
+    en.style.display = showKo ? 'none' : '';
+    ko.style.display = showKo ? '' : 'none';
+    btn.textContent = showKo ? 'English' : '한국어';
+    warn.textContent = showKo
+      ? '⚠ 키 입력은 영문 입력 상태에서만 동작합니다 (한/영 키 확인)'
+      : '⚠ Keys work only in English input mode (check your 한/영 key)';
+  }
+
+  // Hangul IME detection
+  const imeWarn = document.getElementById('ime-warning');
+  function isHangul(key){ return /[㄰-㆏가-힣]/.test(key); }
+  window.addEventListener('keydown', (e) => {
+    if (e.isComposing || e.keyCode === 229 || isHangul(e.key)) imeWarn.style.display = 'block';
+  }, true);
+
+  // cheatsheet toggle (Ctrl + /), esc to close
+  const sheet = document.getElementById('cheatsheet');
+  window.addEventListener('keydown', (e) => {
+    if (e.ctrlKey && e.key === '/'){ e.preventDefault(); sheet.classList.toggle('show'); }
+    if (e.key === 'Escape' && sheet.classList.contains('show')) sheet.classList.remove('show');
+  });
+
+  // load WASM
+  const go = new Go();
+  WebAssembly.instantiateStreaming(fetch('game.wasm'), go.importObject)
+    .then((res) => { go.run(res.instance); })
+    .catch((err) => { document.getElementById('hint').textContent = 'Failed to load game: ' + err; });
+</script>
+</body>
+</html>
