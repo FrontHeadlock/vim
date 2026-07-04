@@ -50,7 +50,8 @@ func playNav(g *Game, keys string) {
 	}
 }
 
-// TestNavigateSolveLevel1 은 1-1 을 이동만으로 클리어해 다음 레벨로 가는지 본다.
+// TestNavigateSolveLevel1 은 1-1 을 이동만으로 클리어해 클리어 화면으로 전환되고,
+// Enter 를 누르면 다음 레벨로 넘어가는지 본다.
 func TestNavigateSolveLevel1(t *testing.T) {
 	g := NewGame()
 	if g.lv.Kind != "navigate" {
@@ -60,9 +61,29 @@ func TestNavigateSolveLevel1(t *testing.T) {
 	if len(g.keyPos) != 0 {
 		t.Fatalf("열쇠 미획득: 남은 %d", len(g.keyPos))
 	}
-	playNav(g, "jjlllll") // 출구(row4,col9) 도달 → 다음 레벨
-	if g.levelIdx != 1 {
-		t.Fatalf("출구 도달 후 레벨 전환 실패: levelIdx=%d want 1", g.levelIdx)
+	playNav(g, "jjlllll") // 출구(row4,col9) 도달 → 클리어 화면
+	if g.state != stateLevelClear {
+		t.Fatalf("출구 도달 후 클리어 상태 전환 실패: state=%v", g.state)
+	}
+}
+
+// TestNavigateLevelsSolvable 은 navigate 레벨 전부가 Solution 키 시퀀스로
+// 실제로 클리어(stateLevelClear/stateAllClear 전환)되는지 검증한다.
+func TestNavigateLevelsSolvable(t *testing.T) {
+	for idx, lv := range levels {
+		if lv.Kind != "navigate" {
+			continue
+		}
+		g := &Game{store: newProgressStore()}
+		g.progress = g.store.Load()
+		g.loadLevel(idx)
+		for _, k := range parseKeys(lv.Solution) {
+			g.feed(k)
+			g.checkWin()
+		}
+		if g.state != stateLevelClear && g.state != stateAllClear {
+			t.Errorf("[%s] Solution %q 로 클리어 실패 (state=%v)", lv.Title, lv.Solution, g.state)
+		}
 	}
 }
 

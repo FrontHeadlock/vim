@@ -15,18 +15,20 @@ type Cmd struct {
 //	"edit"     — transform the buffer to match Target exactly (VimGolf style).
 //	             Solution is the verified answer used by tests to confirm solvability (hidden in-game).
 type Level struct {
+	ID       string // "1-1", "3-4" 등 — Title 접두어와 동일. par 산출/저장소 키/월드 그룹핑에 쓰인다.
 	Title    string
 	Hint     string // the goal + which kind of command to use (NOT the literal answer)
 	Cmds     []Cmd  // command palette for this level
 	Kind     string // "navigate" | "edit"
 	Map      []string
 	Target   []string // edit only
-	Solution string   // edit only (verification, hidden)
+	Solution string   // verification (navigate/edit 공통) + par 산출 기준, 3★ 클리어 전까지 게임 내 비공개
 }
 
 var levels = []Level{
 	// ───────────────────────── W1  The Moving Woods (basic motion) ─────────────────────────
 	{
+		ID:    "1-1",
 		Kind:  "navigate",
 		Title: "1-1  First Steps",
 		Hint:  "Grab the K (key), then reach the $ (exit). Use hjkl instead of the arrow keys to move.",
@@ -43,8 +45,10 @@ var levels = []Level{
 			"..........",
 			".........$",
 		},
+		Solution: "jjlllljjlllll",
 	},
 	{
+		ID:    "1-2",
 		Kind:  "navigate",
 		Title: "1-2  Word Jumps",
 		Hint:  "Don't crawl one cell at a time — jump word by word. Grab the key and head to $.",
@@ -56,8 +60,10 @@ var levels = []Level{
 		Map: []string{
 			"@start  the  long  road  K  to  the  exit  $",
 		},
+		Solution: "wwwwwwwww",
 	},
 	{
+		ID:    "1-3",
 		Kind:  "navigate",
 		Title: "1-3  Start & End of Line",
 		Hint:  "The keys sit at both ends of the line. Use the keys that jump straight to the start/end.",
@@ -72,8 +78,10 @@ var levels = []Level{
 			".............",
 			"K...........$",
 		},
+		Solution: "$0jj$",
 	},
 	{
+		ID:    "1-4",
 		Kind:  "navigate",
 		Title: "1-4  Find a Character",
 		Hint:  "Use a find command to leap directly to a far-off character (K, $).",
@@ -84,8 +92,10 @@ var levels = []Level{
 		Map: []string{
 			"@....K..........$",
 		},
+		Solution: "fKf$",
 	},
 	{
+		ID:    "1-5",
 		Kind:  "navigate",
 		Title: "1-5  Bug Hunt",
 		Hint:  "Bugs (*) are killed by moving onto them and pressing the delete key. Dart up and down, clear them all, then grab the key and exit.",
@@ -101,10 +111,12 @@ var levels = []Level{
 			"..*.......",
 			".........$",
 		},
+		Solution: "lllxjlljhhhxjlllllll",
 	},
 
 	// ───────────────────────── W2  Jump Canyon (fast motion) ─────────────────────────
 	{
+		ID:    "2-1",
 		Kind:  "navigate",
 		Title: "2-1  Repeat Jumps",
 		Hint:  "There's a key that repeats your last find. Find once, then repeat to skip across the dots.",
@@ -116,8 +128,10 @@ var levels = []Level{
 		Map: []string{
 			"@a.b.c.d.K.e.f.g.$",
 		},
+		Solution: "fKf$",
 	},
 	{
+		ID:    "2-2",
 		Kind:  "navigate",
 		Title: "2-2  Jump by Number",
 		Hint:  "Jumping by line number makes vertical travel fast. Clear the bugs and reach the key/exit.",
@@ -136,8 +150,10 @@ var levels = []Level{
 			"*.........",
 			".........$",
 		},
+		Solution: "jllllxjjlljjhhhhhhxjlllllllll",
 	},
 	{
+		ID:    "2-3",
 		Kind:  "navigate",
 		Title: "2-3  Canyon Run",
 		Hint:  "Use everything you've learned! Grab the keys at both ends and find the fastest path to the exit.",
@@ -152,10 +168,12 @@ var levels = []Level{
 			"..................",
 			"K  four  five  six  $",
 		},
+		Solution: "$0jj$",
 	},
 
 	// ───────────────────────── W3  The Editing Dungeon (operators + Insert) ─────────────────────────
 	{
+		ID:    "3-1",
 		Kind:  "edit",
 		Title: "3-1  Fix Typos with x",
 		Hint:  "Too many letters (a typo). Move onto the extra letters and delete them to match the target on the right.",
@@ -169,6 +187,7 @@ var levels = []Level{
 		Solution: "flxx",
 	},
 	{
+		ID:    "3-2",
 		Kind:  "edit",
 		Title: "3-2  Delete Lines with dd",
 		Hint:  "Some lines aren't needed. Move to them and delete whole lines to leave only the target.",
@@ -182,6 +201,7 @@ var levels = []Level{
 		Solution: "jddjdd",
 	},
 	{
+		ID:    "3-3",
 		Kind:  "edit",
 		Title: "3-3  Delete Words with dw",
 		Hint:  "An unwanted word is wedged in the sentence. Use 'delete operator d + word motion w' to remove it whole.",
@@ -195,6 +215,7 @@ var levels = []Level{
 		Solution: "wdw",
 	},
 	{
+		ID:    "3-4",
 		Kind:  "edit",
 		Title: "3-4  Append Text with A",
 		Hint:  "You need to append text to the end of the line. Enter insert mode, type, then press Esc to leave it.",
@@ -208,6 +229,7 @@ var levels = []Level{
 		Solution: "A, World!<esc>",
 	},
 	{
+		ID:    "3-5",
 		Kind:  "edit",
 		Title: "3-5  Replace a Word with cw",
 		Hint:  "Just one word needs swapping. The 'change operator c' deletes and drops you straight into insert.",
@@ -221,6 +243,7 @@ var levels = []Level{
 		Solution: "wcwthat<esc>",
 	},
 	{
+		ID:    "3-6",
 		Kind:  "edit",
 		Title: "3-6  Repeat with .",
 		Hint:  "All three words must become the same word. Use the key that repeats your last change to fly through it.",
@@ -237,6 +260,7 @@ var levels = []Level{
 
 	// ───────────────────────── W4  Temple of Text Objects (advanced editing) ─────────────────────────
 	{
+		ID:    "4-1",
 		Kind:  "edit",
 		Title: "4-1  Delete a Whole Word with daw",
 		Hint:  "Delete a single word, trailing space and all. Use the 'a word' text object with the delete operator.",
@@ -249,6 +273,7 @@ var levels = []Level{
 		Solution: "wdaw",
 	},
 	{
+		ID:    "4-2",
 		Kind:  "edit",
 		Title: "4-2  Change Inside ( ) with ci(",
 		Hint:  "Only the contents inside the ( ) need changing. Use the 'inner' text object to target just inside the parentheses.",
@@ -262,6 +287,7 @@ var levels = []Level{
 		Solution: "f(ci(newArg<esc>",
 	},
 	{
+		ID:    "4-3",
 		Kind:  "edit",
 		Title: "4-3  Change Inside \" \" with ci\"",
 		Hint:  "Only the text inside the \" \" needs changing. Use the text object that selects inside the quotes.",
@@ -275,6 +301,7 @@ var levels = []Level{
 		Solution: "f\"ci\"new<esc>",
 	},
 	{
+		ID:    "4-4",
 		Kind:  "edit",
 		Title: "4-4  Duplicate a Line with yy/p",
 		Hint:  "You need one more copy of the line. Copy (yank) the line and paste it to duplicate.",
@@ -287,6 +314,7 @@ var levels = []Level{
 		Solution: "yyp",
 	},
 	{
+		ID:    "4-5",
 		Kind:  "edit",
 		Title: "4-5  Boss: ciw + . Combo",
 		Hint:  "Turn both OLD into 42! Change one line, then use the 'repeat' key to do the next line the same way.",

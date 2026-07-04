@@ -5,24 +5,11 @@ import (
 	"testing"
 )
 
-// feedKeys 는 "diw", "cw bye<esc>" 같은 입력 문자열을 엔진에 흘려보낸다.
-// 특수키: <esc> <cr> <bs> <c-r>
+// feedKeys 는 "diw", "cw bye<esc>" 같은 입력 문자열을 파싱해 엔진에 흘려보낸다.
+// 토큰화 자체는 프로덕션 코드 keys.go 의 parseKeys 에 위임한다.
 func feedKeys(e *Editor, s string) {
-	for i := 0; i < len(s); {
-		if s[i] == '<' {
-			j := strings.IndexByte(s[i:], '>')
-			if j >= 0 {
-				tok := s[i+1 : i+j]
-				switch tok {
-				case "esc", "cr", "bs", "c-r":
-					e.Feed(SpecialKey(tok))
-				}
-				i += j + 1
-				continue
-			}
-		}
-		e.Feed(RuneKey(rune(s[i])))
-		i++
+	for _, k := range parseKeys(s) {
+		e.Feed(k)
 	}
 }
 
@@ -108,9 +95,9 @@ func TestReplaceAndTilde(t *testing.T) {
 
 func TestUndoRedo(t *testing.T) {
 	e := NewEditor([]string{"hello"})
-	feedKeys(e, "x")  // "ello"
-	feedKeys(e, "x")  // "llo"
-	feedKeys(e, "u")  // "ello"
+	feedKeys(e, "x") // "ello"
+	feedKeys(e, "x") // "llo"
+	feedKeys(e, "u") // "ello"
 	eq(t, "undo1", strings.Join(e.Lines(), ""), "ello")
 	feedKeys(e, "u") // "hello"
 	eq(t, "undo2", strings.Join(e.Lines(), ""), "hello")

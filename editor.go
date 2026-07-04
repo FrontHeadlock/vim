@@ -23,7 +23,7 @@ type Key struct {
 	S string
 }
 
-func RuneKey(r rune) Key { return Key{R: r} }
+func RuneKey(r rune) Key      { return Key{R: r} }
 func SpecialKey(s string) Key { return Key{S: s} }
 
 type snapshot struct {
@@ -43,7 +43,7 @@ type Editor struct {
 	count   int
 	op      rune   // 0, 'd','c','y'
 	await   string // "", "f","F","t","T","r","g"
-	pendObj rune    // 0, 또는 'i'/'a' (텍스트 객체 한정자 대기)
+	pendObj rune   // 0, 또는 'i'/'a' (텍스트 객체 한정자 대기)
 
 	// Visual 앵커
 	vrow, vcol int
@@ -62,10 +62,10 @@ type Editor struct {
 	redo []snapshot
 
 	// dot(.) 반복
-	curKeys    []Key
-	dot        []Key
-	changed    bool // 현재 명령이 버퍼를 변경했는가
-	replaying  bool
+	curKeys   []Key
+	dot       []Key
+	changed   bool // 현재 명령이 버퍼를 변경했는가
+	replaying bool
 
 	// 상태 표시
 	lastKey    string
@@ -660,7 +660,7 @@ func (e *Editor) nextWordEnd(r, c int, big bool) (int, int) {
 }
 
 func (e *Editor) findChar(cmd, ch rune, count int) {
-	r, c := e.row, e.col
+	c := e.col
 	l := e.line()
 	for i := 0; i < count; i++ {
 		switch cmd {
@@ -715,7 +715,6 @@ func (e *Editor) findChar(cmd, ch rune, count int) {
 		}
 	}
 	e.col = c
-	_ = r
 	e.dcol = e.col
 }
 
@@ -836,7 +835,7 @@ func (e *Editor) applyOpMotion(cmd rune) bool {
 }
 
 func (e *Editor) opFind(cmd, ch rune) {
-	count := e.takeCount()
+	e.takeCount() // count 는 아직 지원 안 함(단발 find만) — 대기 중이던 count 를 소비/리셋
 	l := e.line()
 	start := e.col
 	var c1, c2 int
@@ -890,7 +889,6 @@ func (e *Editor) opFind(cmd, ch rune) {
 		}
 		c1, c2 = p, start
 	}
-	_ = count
 	e.applyCharRange(e.op, c1, c2)
 }
 

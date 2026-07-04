@@ -41,4 +41,8 @@ func registerJSHooks() {
 		requestRestart()
 		return nil
 	}))
+	js.Global().Set("vimquestLevelSelect", js.FuncOf(func(js.Value, []js.Value) any {
+		requestLevelSelect()
+		return nil
+	}))
 }
