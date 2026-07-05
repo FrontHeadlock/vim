@@ -7,7 +7,7 @@ import (
 )
 
 // TestVisualRowsCharwiseSingleLine 은 같은 줄 charwise 선택이 [c1,c2] 구간
-// 하나로 정확히 나오는지 확인한다(F1: render.go/renderer.js 의 inVisual 대체).
+// 하나로 정확히 나오는지 확인한다.
 func TestVisualRowsCharwiseSingleLine(t *testing.T) {
 	g := &Game{store: store.New()}
 	g.progress = g.store.Load()
@@ -52,7 +52,7 @@ func TestVisualRowsNilWhenNotSelecting(t *testing.T) {
 }
 
 // TestMatchedRowsPerLine 은 edit 레벨에서 각 줄이 Target 과 일치하는지를
-// 정확히 반영하는지 확인한다(F1: render.go/renderer.js 의 line==target[r] 대체).
+// 정확히 반영하는지 확인한다.
 func TestMatchedRowsPerLine(t *testing.T) {
 	g := &Game{store: store.New()}
 	g.progress = g.store.Load()
@@ -76,7 +76,7 @@ func TestMatchedRowsNilForNavigate(t *testing.T) {
 	}
 }
 
-// TestSnapshotContract 는 D2: 각 화면 상태에서 Snapshot() 이 렌더러가 반드시
+// TestSnapshotContract 는 각 화면 상태에서 Snapshot() 이 렌더러가 반드시
 // 필요로 하는 키를 빠짐없이 채우는지 확인한다 — 스냅샷 필드가 늘어날 때
 // 문서화 없이 조용히 계약이 깨지는 것을 잡는다.
 func TestSnapshotContract(t *testing.T) {

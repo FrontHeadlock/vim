@@ -3,10 +3,10 @@ package engine
 // visual.go — Visual/VisualLine 모드.
 
 // multilineCharwiseFallbacks 는 visualOperate 의 "여러 줄 charwise 선택은
-// 줄 단위로 대체 처리"(B4) 분기가 실행된 횟수. 이 분기는 실제 Vim 과 다르게
+// 줄 단위로 대체 처리" 분기가 실행된 횟수. 이 분기는 실제 Vim 과 다르게
 // 동작하는 알려진 부정확성이라 — 레벨 Solution 이 이 경로를 절대 밟지
-// 않음을 테스트로 보장하기 위한 훅이다(ResetMultilineCharwiseFallbackCount/
-// MultilineCharwiseFallbackCount, 게임 패키지의 레벨 검증 테스트가 사용).
+// 않음을 테스트로 보장하기 위한 훅이다(게임 패키지의 레벨 검증 테스트가
+// ResetMultilineCharwiseFallbackCount/MultilineCharwiseFallbackCount 로 확인).
 // 프로덕션 동작에는 영향 없는 카운터 하나뿐이다.
 var multilineCharwiseFallbacks int
 
@@ -20,9 +20,9 @@ func (e *Editor) feedVisual(k Key) {
 	if k.S == "esc" {
 		e.mode = ModeNormal
 		e.clamp()
-		// B7: count 가 남아있으면 esc 로 지운다 — 안 그러면 "v2<esc>d" 처럼
-		// 취소된 count 가 다음 Normal 커맨드로 새어 들어간다(count 는 Normal/
-		// Visual 이 공유하는 필드).
+		// count 가 남아있으면 esc 로 지운다 — 안 그러면 "v2<esc>d" 처럼 취소된
+		// count 가 다음 Normal 커맨드로 새어 들어간다(count 는 Normal/Visual
+		// 이 공유하는 필드).
 		e.clearPending()
 		return
 	}
@@ -47,31 +47,15 @@ func (e *Editor) feedVisual(k Key) {
 	if r == 0 {
 		return
 	}
-	// B7: count 입력(2w, 3j 등) — Normal 모드(feedNormal)와 동일한 누적 규칙.
-	// 예전엔 비주얼 모드가 count 를 전혀 안 봐서 "2w"/"3j" 가 한 칸만 이동해
-	// 실제 Vim 과 다른 동작을 가르쳤다.
-	if r >= '1' && r <= '9' || (r == '0' && e.count > 0) {
-		e.count = e.count*10 + int(r-'0')
-		// F3 fuzz 로 발견: normal.go 의 count 상한(maxCount)을 여기서도 걸지
-		// 않으면 "V" + 긴 숫자열 + 모션이 아래 motionOnce 반복 루프를 그대로
-		// O(count) 로 돌려 멈춘다 — 두 count 누적 로직이 복제되면서 상한만
-		// 새어나간 사례.
-		if e.count > maxCount || e.count < 0 {
-			e.count = maxCount
-		}
+	if e.accumCount(r) {
 		return
 	}
 	switch r {
 	case 'h', 'l', 'j', 'k', 'w', 'W', 'b', 'B', 'e', 'E', '0', '^', '$', 'G':
 		if r == 'G' {
-			n := e.count // takeCount() 이전에 원본 보존(0 = count 없음 = 마지막 줄)
+			n := e.count // gotoLineOr 이전에 원본 보존(0 = count 없음 = 마지막 줄)
 			e.count = 0
-			if n > 0 {
-				e.row = n - 1
-			} else {
-				e.row = len(e.lines) - 1
-			}
-			e.clamp()
+			e.gotoLineOr(n, len(e.lines)-1)
 		} else {
 			count := e.takeCount()
 			for i := 0; i < count; i++ {

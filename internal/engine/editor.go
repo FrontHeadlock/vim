@@ -5,7 +5,7 @@
 // Editor 의 내부 상태는 전부 비공개다. 바깥 레이어(게임 규칙, 렌더러)는 파일
 // 하단(api.go)의 읽기 전용 접근자와 SetCursor 만 쓸 수 있다.
 //
-// 파일 구성(F5: 1,585줄이던 editor.go 를 순수 이동으로 분해 — 로직 변경 없음):
+// 파일 구성:
 // editor.go(이 파일, 타입·Feed 디스패치·공용 유틸) · search.go(검색 pseudo-mode) ·
 // normal.go(Normal 모드 디스패치) · motion.go(커서 모션) ·
 // operator.go(연산자+모션 스팬) · textobject.go(iw/i(/i" 등) ·
@@ -63,7 +63,7 @@ type Editor struct {
 	dot         []Key
 	changed     bool
 	replaying   bool
-	undoPending bool // B2: pushUndo 가 이번 커맨드에서 호출됐는지(커밋 시점에 실제 변경 여부 확인)
+	undoPending bool // pushUndo 가 이번 커맨드에서 호출됐는지(커밋 시점에 실제 변경 여부 확인)
 
 	searching     bool
 	searchDir     rune
@@ -242,4 +242,26 @@ func (e *Editor) takeCount() int {
 		return 1
 	}
 	return c
+}
+
+// maxCount 는 count 접두사(예: "12dd")의 상한. 상한이 없으면 매우 큰 수를
+// 입력해도 doMotion/motionSpan/findChar 의 O(count) 루프가 그대로 실행돼
+// 수초~수십초 멈춘다(웹 빌드는 브라우저 탭이 얼어붙는다).
+const maxCount = 9999
+
+// accumCount 는 숫자 키 하나를 count 에 누적한다(자릿수 쌓기 + 오버플로
+// 포함 상한 클램프). 누적했으면 true — 호출자는 이때 더 처리하지 않고
+// return 해야 한다. Normal/Visual 모드가 이 로직을 각각 복제해 상한
+// 클램프를 한쪽에서 빠뜨린 전례가 있어(fuzz 로 실제 행업 발견) 하나로
+// 통합했다.
+func (e *Editor) accumCount(r rune) bool {
+	isDigit := r >= '1' && r <= '9' || (r == '0' && e.count > 0)
+	if !isDigit {
+		return false
+	}
+	e.count = e.count*10 + int(r-'0')
+	if e.count > maxCount || e.count < 0 {
+		e.count = maxCount
+	}
+	return true
 }

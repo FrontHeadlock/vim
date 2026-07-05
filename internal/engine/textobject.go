@@ -101,7 +101,7 @@ func quoteObject(l []rune, col int, q rune, around bool) (int, int, bool) {
 func pairObject(l []rune, col int, open, close rune, around bool) (int, int, bool) {
 	// 빈 줄(길이 0)이면 clamp() 가 col=0 을 허용하는데(lastCol 이 빈 줄에서 0을
 	// 돌려줌), 그 col 은 "한 칸도 없는 줄" 의 유효하지 않은 인덱스라 아래
-	// l[i] 인덱싱이 패닉한다 — wordObject 와 동일한 가드(F3 fuzz 로 발견).
+	// l[i] 인덱싱이 패닉한다(fuzz 테스트로 발견) — wordObject 와 동일한 가드.
 	if len(l) == 0 || col >= len(l) {
 		return 0, 0, false
 	}

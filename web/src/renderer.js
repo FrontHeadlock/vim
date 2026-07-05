@@ -4,8 +4,8 @@
 'use strict';
 
 const CW = 14, LH = 28, W = 960, H = 600;
-// D3: 이 팔레트가 canonical — cmd/desktop/render.go 의 col* 상수와
-// index.html 의 CSS 변수(3벌째)는 여기 값을 손으로 맞춘 사본이다.
+// 이 팔레트가 canonical — cmd/desktop/render.go 의 col* 상수와 index.html 의
+// CSS 변수(3벌째)는 여기 값을 손으로 맞춘 사본이다.
 const COL = {
   bg: '#1e202a', floor: '#4a4f5e', key: '#f4d03f', keyDim: '#6a6030',
   pest: '#e54b4b', exit: '#4fc36b', cursor: '#3aa0d0', ins: '#f4d03f',
@@ -67,7 +67,7 @@ class Renderer {
 
   drawPlaying(st) {
     this.clear();
-    // B2: st.title 이 생성기별 유형을 이미 담고 있다("DRILL"/"DRILL [w]"/...).
+    // st.title 이 생성기별 유형을 이미 담고 있다("DRILL"/"DRILL [w]"/...).
     let hud = st.drill
       ? `${st.title}   streak ${st.drill.streak}`
       : `level ${st.level}/${st.levelCount}`;
@@ -102,7 +102,7 @@ class Renderer {
   }
 
   drawBuffer(st, ox, oy, target) {
-    // F1: 비주얼 선택 구간·목표줄 일치 여부는 게임이 계산해 내려준다
+    // 비주얼 선택 구간·목표줄 일치 여부는 게임이 계산해 내려준다
     // (visualRows/matchedRows) — 렌더러는 읽기만 한다.
     const visByRow = new Map((st.visualRows || []).map(v => [v.row, v]));
     const matched = st.matchedRows || [];
@@ -150,8 +150,8 @@ class Renderer {
     let best = `best      : ${st.clearBest}`;
     if (st.clearIsNew) best += ` -> ${st.clearStrokes} (NEW!)`;
     this.ch(best, 340, 320, COL.muted);
-    // B4: 내가 실제로 입력한 키 시퀀스 — 별점과 무관하게 항상 표시(제작자
-    // solution 과 달리 스포일러가 아니다). COPY 버튼(glue.js)이 이 값을 읽는다.
+    // 내가 실제로 입력한 키 시퀀스 — 별점과 무관하게 항상 표시(제작자 solution
+    // 과 달리 스포일러가 아니다). COPY 버튼(glue.js)이 이 값을 읽는다.
     this.ch(`yours     : ${st.clearYours || ''}`, 340, 350, COL.text);
     if (st.clearStars === 3 && st.solution) this.ch(`solution  : ${st.solution}`, 340, 380, COL.key);
     this.ch('[Enter] next   [r] retry', 340, 420, COL.muted);

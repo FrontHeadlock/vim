@@ -42,10 +42,10 @@ func (e *Editor) pushUndo() {
 		e.undo = e.undo[len(e.undo)-undoCap:]
 	}
 	e.redo = nil
-	// B2: changed 는 여기서 단정하지 않는다 — 실제로 바뀌었는지는 커맨드
-	// 경계에서 commitUndoIfChanged 가 버퍼를 비교해 확정한다. 그러지 않으면
-	// "i<esc>"(무변경 insert) 하나로도 undo 스택에 스냅샷이 쌓여, 그 다음
-	// "u" 가 커서만 되돌리고 아무 일도 안 한 것처럼 보인다.
+	// changed 는 여기서 단정하지 않는다 — 실제로 바뀌었는지는 커맨드 경계에서
+	// commitUndoIfChanged 가 버퍼를 비교해 확정한다. 그러지 않으면 "i<esc>"
+	// (무변경 insert) 하나로도 undo 스택에 스냅샷이 쌓여, 그 다음 "u" 가
+	// 커서만 되돌리고 아무 일도 안 한 것처럼 보인다.
 	e.undoPending = true
 }
 

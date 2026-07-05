@@ -19,7 +19,10 @@ echo "▶ TinyGo WASM 빌드 중..."
 # :drill 이 문제를 계속 새로 만들어도 이 정도 규모(격자 100칸)로는 무해하다.
 # -scheduler=none 은 시도하지 않는다: wasm_exec.js 의 콜백 재개(resume export)가
 # 고루틴 스케줄러에 의존해서, 끄면 vqInput 반복 호출이 즉시 깨진다(실측 확인됨).
-tinygo build -target wasm -opt=z -gc=leaking -no-debug -o web/dist/game.wasm ./cmd/web
+# -panic=trap: panic 시 메시지 출력 없이 즉시 trap(gzip ~116KB→~93KB, 실측) —
+# 엔진이 임의 입력에 패닉하지 않는다는 걸 fuzz 하네스(FuzzEditorNeverPanics,
+# CI 에서 상시 실행)가 기계적으로 보증하므로 무해한 트레이드오프로 판단.
+tinygo build -target wasm -opt=z -gc=leaking -panic=trap -no-debug -o web/dist/game.wasm ./cmd/web
 
 echo "▶ wasm_exec.js 동기화..."
 cp "$(tinygo env TINYGOROOT)/targets/wasm_exec.js" web/dist/wasm_exec.js

@@ -66,7 +66,7 @@ func (g *Game) Snapshot() map[string]any {
 			wOut[wi] = lvOut
 		}
 		base["worlds"] = wOut
-		// C3: 내부 필드는 selWorld/selLevel 로 개명했지만, 이 JSON 키(selRow/selCol)는
+		// 내부 필드명은 selWorld/selLevel 이지만, 이 JSON 키(selRow/selCol)는
 		// 웹 계약이라 유지한다(renderer.js 가 이 이름으로 읽음 — 바꾸려면 동시 수정 필요).
 		base["selRow"] = g.selWorld
 		base["selCol"] = g.selLevel
@@ -78,7 +78,7 @@ func (g *Game) Snapshot() map[string]any {
 	if g.state == StateDrill {
 		base["state"] = "drill"
 		base["drill"] = map[string]any{
-			"kind":      g.drillKind, // B2: "" · "w" · "f" · "x" — HUD 표시용
+			"kind":      g.drillKind, // "" · "w" · "f" · "x" — HUD 표시용
 			"streak":    g.drillStreak,
 			"totalKeys": g.drillTotalKeys,
 			"totalPar":  g.drillTotalPar,
@@ -118,9 +118,9 @@ func (g *Game) Snapshot() map[string]any {
 		base["matchedRows"] = mOut
 	}
 
-	// F1: 비주얼 선택 기하 계산을 게임이 한 번만 해서 넘긴다 — 렌더러(desktop
-	// render.go, 여기(웹))가 각자 inVisual 을 복제하던 것을 없앤다(C1 의 NEW!
-	// 판정 통합과 같은 원칙).
+	// 비주얼 선택 기하 계산을 게임이 한 번만 해서 넘긴다 — 렌더러(desktop
+	// render.go, 여기(웹))가 각자 계산을 복제하지 않게 한다(NEW! 판정
+	// 통합과 같은 원칙 — 게임 규칙은 렌더러로 새면 안 된다).
 	vRows := g.VisualRows()
 	vOut := make([]any, len(vRows))
 	for i, vr := range vRows {

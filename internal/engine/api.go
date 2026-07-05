@@ -40,8 +40,7 @@ func (e *Editor) Cell(row, col int) (rune, bool) {
 // SetCell 은 (row,col) 문자를 제자리에서 치환한다 — 길이를 바꾸지 않으므로
 // 같은 줄의 다른 좌표(열쇠·출구 등)가 절대 밀리지 않는다. 범위 밖이면 no-op.
 // deleteChars 같은 편집 명령과 달리 커서·undo 스택을 건드리지 않는다 — navigate
-// 게임 규칙(버그 처치)처럼 "텍스트 편집이 아닌 게임판 상태 변경"에 쓰기 위한
-// API 다(A5: x 로 버그를 실제 삭제하면 줄이 밀려 열쇠/출구 좌표와 desync됐다).
+// 게임 규칙(버그 처치)처럼 "텍스트 편집이 아닌 게임판 상태 변경"에 쓰기 위한 API 다.
 func (e *Editor) SetCell(row, col int, r rune) {
 	if row < 0 || row >= len(e.lines) || col < 0 || col >= len(e.lines[row]) {
 		return

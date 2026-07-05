@@ -16,8 +16,8 @@ type ClearStats struct {
 	Par     int
 	Stars   int
 	Best    int    // 갱신 전 best (0 이면 이전 클리어 기록 없음)
-	IsNew   bool   // true 면 이번 클리어가 신기록(C1: 렌더러가 재계산하지 않고 이 값만 읽는다)
-	Yours   string // B4: 내가 실제로 입력한 키 시퀀스(문자열화) — 별점 무관하게 항상 채워짐
+	IsNew   bool   // true 면 이번 클리어가 신기록(렌더러는 재계산하지 않고 이 값만 읽는다)
+	Yours   string // 내가 실제로 입력한 키 시퀀스(문자열화) — 별점 무관하게 항상 채워짐
 }
 
 func (g *Game) State() State { return g.state }
@@ -59,9 +59,8 @@ func (g *Game) DrillTotals() (keys, par int) { return g.drillTotalKeys, g.drillT
 type RowSpan struct{ Row, C1, C2 int }
 
 // VisualRows 는 현재 비주얼 선택을 렌더러가 바로 쓸 수 있는 행별 구간
-// 목록으로 반환한다(F1: render.go 와 renderer.js 가 각자 inVisual 기하 계산을
-// 복제하던 것을 게임이 한 번만 계산 — C1 의 NEW! 판정 통합과 같은 원칙).
-// 선택이 없으면 nil.
+// 목록으로 반환한다 — 게임이 한 번만 계산해 두 렌더러가 각자 기하 계산을
+// 복제하지 않게 한다(NEW! 판정 통합과 같은 원칙). 선택이 없으면 nil.
 func (g *Game) VisualRows() []RowSpan {
 	r1, c1, r2, c2, lineMode, ok := g.ed.VisualSpan()
 	if !ok {
@@ -91,9 +90,8 @@ func (g *Game) VisualRows() []RowSpan {
 }
 
 // MatchedRows 는 edit 레벨에서 현재 버퍼의 각 줄이 목표(Target)의 같은 줄과
-// 정확히 일치하는지를 나타낸다(F1: render.go 와 renderer.js 가 각자
-// line==target[r] 비교를 복제하던 것을 게임이 한 번만 계산). navigate
-// 레벨에서는 nil.
+// 정확히 일치하는지를 나타낸다 — 게임이 한 번만 계산해 두 렌더러가 각자
+// line==target[r] 비교를 복제하지 않게 한다. navigate 레벨에서는 nil.
 func (g *Game) MatchedRows() []bool {
 	if g.lv.Kind != "edit" {
 		return nil

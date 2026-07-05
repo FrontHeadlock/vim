@@ -20,9 +20,9 @@ func feedKeys(e *engine.Editor, s string) {
 
 // TestEditLevelsSolvable 은 모든 edit 레벨이 의도된 Solution 으로 Target 에
 // 정확히 도달하는지 검증한다 — 풀이 불가능한 퍼즐을 출시 전에 잡아낸다.
-// B4 가드도 겸한다: 여러 줄 charwise 비주얼 선택은 "줄 단위로 대체 처리"되는
-// 알려진 부정확성(refactor_code.md B4)이라, 레벨 저작이 실수로 이 경로를
-// 밟으면 여기서 즉시 실패해야 한다.
+// 여러 줄 charwise 비주얼 선택이 "줄 단위로 대체 처리"되는 가드도 겸한다 —
+// 이는 알려진 부정확성이라, 레벨 저작이 실수로 이 경로를 밟으면 여기서
+// 즉시 실패해야 한다.
 func TestEditLevelsSolvable(t *testing.T) {
 	engine.ResetMultilineCharwiseFallbackCount()
 	for _, lv := range levels {
@@ -108,7 +108,7 @@ func TestNavigateLevelsSolvable(t *testing.T) {
 	}
 }
 
-// TestLevel16NaiveSolveIsWorse 는 B3: "1-6" 보너스 레벨이 f/t 랜드마크 없이
+// TestLevel16NaiveSolveIsWorse 는 "1-6" 보너스 레벨이 f/t 랜드마크 없이
 // (hjkl 만으로) 풀면 par 대비 1.5배를 넘는 타수가 드는지 확인한다 — 카운트·
 // find 조합 없이는 par 급 클리어가 불가능하도록 설계됐음을 실측으로 보증한다.
 func TestLevel16NaiveSolveIsWorse(t *testing.T) {
@@ -191,7 +191,7 @@ func firstMeaningfulRuneOfCmdToken(tok string) rune {
 	return r
 }
 
-// TestNavigateAllowsAllTaughtKeys 는 C2: 모든 navigate 레벨의 Cmds 에 등장하는
+// TestNavigateAllowsAllTaughtKeys 는 모든 navigate 레벨의 Cmds 에 등장하는
 // 키가 navigateAllows 화이트리스트를 통과하는지 확인한다. 화이트리스트는
 // 하드코딩된 switch 로 유지하되(허용 정책은 코드에 보이는 게 낫다), 새
 // navigate 레벨이 가르치는 키를 화이트리스트에 추가하는 걸 잊는 사고("가르치는
@@ -254,11 +254,11 @@ func TestBugKillFiresEffect(t *testing.T) {
 	}
 }
 
-// TestNavigateBugKillPreservesCoordinates 는 A5 회귀 테스트: 버그가 같은 줄에서
+// TestNavigateBugKillPreservesCoordinates 는 회귀 테스트: 버그가 같은 줄에서
 // 열쇠/출구보다 왼쪽에 있을 때 x 로 처치해도 그 줄의 다른 좌표가 밀리지
-// 않는지 확인한다. 예전엔 g.ed.Feed(k) 가 deleteChars(물리적 삭제)를 태워
-// 버그 오른쪽의 모든 문자가 한 칸씩 왼쪽으로 밀렸다 — keyPos(레벨 로드 시
-// 고정 캡처)와 라이브 판정 좌표(cellAt)가 어긋나는 결함이었다.
+// 않는지 확인한다. deleteChars(물리적 삭제)를 타면 버그 오른쪽의 모든
+// 문자가 한 칸씩 왼쪽으로 밀려, keyPos(레벨 로드 시 고정 캡처)와 라이브
+// 판정 좌표(cellAt)가 어긋난다.
 func TestNavigateBugKillPreservesCoordinates(t *testing.T) {
 	lv := Level{ID: "x-desync-regress", Kind: "navigate", Map: []string{"@.*..K...$"}}
 	g := &Game{store: store.New()}
@@ -306,9 +306,8 @@ func TestExCommandQ(t *testing.T) {
 	}
 }
 
-// TestStrokesExemptExCommand 는 B5: ':' 진입과 그 이후 ex-command 입력이
-// strokes 를 증가시키지 않는지 확인한다 — ':help' 를 열어봐도 별점 손해가
-// 없어야 한다(예전엔 feed() 최상단에서 무조건 strokes++ 했었다).
+// TestStrokesExemptExCommand 는 ':' 진입과 그 이후 ex-command 입력이 strokes
+// 를 증가시키지 않는지 확인한다 — ':help' 를 열어봐도 별점 손해가 없어야 한다.
 func TestStrokesExemptExCommand(t *testing.T) {
 	g := New()
 	before := g.strokes
@@ -320,10 +319,9 @@ func TestStrokesExemptExCommand(t *testing.T) {
 	}
 }
 
-// TestExCommandRestart 는 :restart 로 현재 레벨이 리로드되는지 확인한다.
-// TestExCommandDrillKindDispatch 는 B2: ":drill"/":drill w"/":drill f"/
-// ":drill x" 가 각각 올바른 생성기 유형으로 드릴을 시작하는지 확인한다
-// (레벨 Title 의 대괄호 표기로 판별 — HUD 표시와 같은 소스).
+// TestExCommandDrillKindDispatch 는 ":drill"/":drill w"/":drill f"/":drill x"
+// 가 각각 올바른 생성기 유형으로 드릴을 시작하는지 확인한다(레벨 Title 의
+// 대괄호 표기로 판별 — HUD 표시와 같은 소스).
 func TestExCommandDrillKindDispatch(t *testing.T) {
 	cases := []struct{ cmd, title string }{
 		{"drill", "DRILL"},
@@ -345,6 +343,7 @@ func TestExCommandDrillKindDispatch(t *testing.T) {
 	}
 }
 
+// TestExCommandRestart 는 :restart 로 현재 레벨이 리로드되는지 확인한다.
 func TestExCommandRestart(t *testing.T) {
 	g := New()
 	playNav(g, "jjllll") // 열쇠 획득해 strokes/keyPos 변화를 만든다
@@ -383,12 +382,10 @@ func TestExCommandRestartInDrillStaysInDrill(t *testing.T) {
 	}
 }
 
-// TestRestartCurrentIsDrillAware 는 restartCurrent() 자체를 직접 호출해도
+// TestRestartCurrentIsDrillAware 는 RestartCurrent() 자체를 직접 호출해도
 // (즉 :restart ex-command 경로를 거치지 않고, web_js.go 의 vimquestReset 이
-// 부르는 것과 동일하게) 드릴 인식이 유지되는지 확인한다. 예전엔 이 로직이
-// runExCommand 안에만 있어서 vimquestReset 이 별도로 g.loadLevel 을 직접
-// 불러 같은 버그를 반복했다 — 이제 두 호출부 모두 restartCurrent() 하나만
-// 거치므로, 이 테스트가 그 유일한 구현을 직접 지킨다.
+// 부르는 것과 동일하게) 드릴 인식이 유지되는지 확인한다 — RestartCurrent 가
+// 재시작의 유일한 진입점이라는 계약을 이 테스트가 직접 지킨다.
 func TestRestartCurrentIsDrillAware(t *testing.T) {
 	g := New()
 	g.LoadLevel(2)
@@ -479,8 +476,8 @@ func TestInputLevelClearEnterAdvances(t *testing.T) {
 	}
 }
 
-// TestClearIsNewFlag 는 C1: ClearStats.IsNew 가 최초 클리어/기록 미갱신
-// 두 경우에서 올바른지 확인한다(렌더러가 직접 재계산하지 않고 이 값만 읽는다).
+// TestClearIsNewFlag 는 ClearStats.IsNew 가 최초 클리어/기록 미갱신 두
+// 경우에서 올바른지 확인한다(렌더러가 직접 재계산하지 않고 이 값만 읽는다).
 func TestClearIsNewFlag(t *testing.T) {
 	g := New()
 	playNav(g, "jjllll")
@@ -502,9 +499,9 @@ func TestClearIsNewFlag(t *testing.T) {
 	}
 }
 
-// TestClearYoursRecordsMyKeys 는 B4: 클리어 화면의 "yours" 가 실제로 입력한
-// 키 시퀀스를 반영하고, ex-command 로 진입한 키(:q 등)는 포함하지 않는지
-// 확인한다(strokes 와 같은 기준 — B5).
+// TestClearYoursRecordsMyKeys 는 클리어 화면의 "yours" 가 실제로 입력한 키
+// 시퀀스를 반영하고, ex-command 로 진입한 키(:q 등)는 포함하지 않는지
+// 확인한다(strokes 와 같은 기준).
 func TestClearYoursRecordsMyKeys(t *testing.T) {
 	g := New()
 	playNav(g, "jjllll")
@@ -574,9 +571,9 @@ func TestInputNoStrokesOutsidePlaying(t *testing.T) {
 	}
 }
 
-// TestInputAllClearReturnsToSelect 는 F2/A1: StateAllClear 화면에서 cr(또는 esc)
-// 이 레벨 선택으로 복귀시키는지 확인한다 — 예전엔 이 상태에서 입력이 전부
-// 무시돼 데스크톱에서 앱 종료 외 탈출 수단이 없었다(소프트락).
+// TestInputAllClearReturnsToSelect 는 StateAllClear 화면에서 cr(또는 esc) 이
+// 레벨 선택으로 복귀시키는지 확인한다 — 안 그러면 이 상태에서 입력이 전부
+// 무시돼 데스크톱에서 앱 종료 외 탈출 수단이 없다(소프트락).
 func TestInputAllClearReturnsToSelect(t *testing.T) {
 	g := &Game{store: store.New(), state: StateAllClear}
 	g.progress = g.store.Load()
@@ -593,9 +590,9 @@ func TestInputAllClearReturnsToSelect(t *testing.T) {
 	}
 }
 
-// TestParseKeyUTF8 은 A4: 웹 입력 경로(ParseKey)가 멀티바이트 UTF-8 토큰을
-// 바이트 단위로 잘라 깨진 rune 을 만들지 않는지 확인한다 — engine.ParseKeys
-// 와 같은 계열의 결함이 이 함수에도 별도로 있었다(rune(tok[0])).
+// TestParseKeyUTF8 은 웹 입력 경로(ParseKey)가 멀티바이트 UTF-8 토큰을 바이트
+// 단위로 잘라 깨진 rune 을 만들지 않는지 확인한다(engine.ParseKeys 와 같은
+// 계열의 결함이 이 함수에도 별도로 있을 수 있다 — rune(tok[0]) 패턴).
 func TestParseKeyUTF8(t *testing.T) {
 	k := ParseKey("한")
 	if k.R != '한' {
@@ -622,98 +619,60 @@ func TestDrillCapsSessionLength(t *testing.T) {
 	}
 }
 
-// TestDrillGeneratorSolvable 은 :drill 이 생성하는 무작위 문제 100개가 전부
-// 생성기 자신이 산출한 Solution 으로 실제 클리어되는지 확인한다(property
-// 테스트 — 시드 고정으로 재현 가능). loadLevelData(정규 레벨과 공유하는 실제
-// 프로덕션 파싱 경로)를 그대로 재사용해 로직 중복/드리프트를 피한다.
-// advanceDrill 을 거치면 클리어 즉시 다음 문제가 자동 생성돼 검증이 꼬이므로
-// checkWin() 이 아니라 승리 조건만 직접 확인한다.
+// checkDrillSolvable 은 생성기가 만든 레벨을 실제 프로덕션 파싱 경로
+// (loadLevelData)로 로드하고, 자신의 Solution 으로 열쇠를 전부 모으고
+// 출구에 도달해 클리어되는지 확인한다(property 테스트 — 시드 고정으로
+// 재현 가능). drill.go 의 hjkl/word/find 생성기가 이 뼈대를 공유한다
+// (버그 소탕 생성기는 g.feed 경유 검증이 필요해 자기 테스트를 따로 둔다).
+func checkDrillSolvable(t *testing.T, label string, generate func(*rand.Rand) Level, seed int64) {
+	t.Helper()
+	rng := rand.New(rand.NewSource(seed))
+	for i := 0; i < 100; i++ {
+		lv := generate(rng)
+
+		g := &Game{store: store.New()}
+		g.progress = g.store.Load()
+		g.loadLevelData(lv)
+
+		keyPos := make(map[[2]int]bool, len(g.keyPos))
+		for pos := range g.keyPos {
+			keyPos[pos] = true
+		}
+		for _, k := range engine.ParseKeys(lv.Solution) {
+			g.ed.Feed(k)
+			delete(keyPos, [2]int{g.ed.Row(), g.ed.Col()})
+		}
+		cell := g.cellAt(g.ed.Row(), g.ed.Col())
+		if len(keyPos) != 0 || cell != '$' {
+			t.Fatalf("[%s iter %d] 생성기 해로 클리어 안 됨: 남은 keyPos=%v cell=%q map=%v sol=%q",
+				label, i, keyPos, cell, lv.Map, lv.Solution)
+		}
+	}
+}
+
+// TestDrillGeneratorSolvable 은 :drill(기본 hjkl)이 생성하는 무작위 문제
+// 100개가 전부 클리어되는지 확인한다.
 func TestDrillGeneratorSolvable(t *testing.T) {
-	rng := rand.New(rand.NewSource(1))
-	for i := 0; i < 100; i++ {
-		lv := generateDrill(rng)
-
-		g := &Game{store: store.New()}
-		g.progress = g.store.Load()
-		g.loadLevelData(lv)
-
-		keyPos := make(map[[2]int]bool, len(g.keyPos))
-		for pos := range g.keyPos {
-			keyPos[pos] = true
-		}
-
-		for _, k := range engine.ParseKeys(lv.Solution) {
-			g.ed.Feed(k)
-			delete(keyPos, [2]int{g.ed.Row(), g.ed.Col()})
-		}
-
-		cell := g.cellAt(g.ed.Row(), g.ed.Col())
-		if len(keyPos) != 0 || cell != '$' {
-			t.Fatalf("[iter %d] 생성기 해로 클리어 안 됨: 남은 keyPos=%v cell=%q map=%v sol=%q",
-				i, keyPos, cell, lv.Map, lv.Solution)
-		}
-	}
+	checkDrillSolvable(t, "hjkl", generateDrill, 1)
 }
 
-// TestDrillWordGeneratorSolvable 은 B2: :drill w 가 생성하는 문제 100개가
-// 전부 생성기 자신의 그리디 해(w 반복)로 클리어되는지 확인한다.
+// TestDrillWordGeneratorSolvable 은 :drill w 가 생성하는 문제 100개가 전부
+// 생성기 자신의 그리디 해(w 반복)로 클리어되는지 확인한다.
 func TestDrillWordGeneratorSolvable(t *testing.T) {
-	rng := rand.New(rand.NewSource(2))
-	for i := 0; i < 100; i++ {
-		lv := generateDrillWord(rng)
-
-		g := &Game{store: store.New()}
-		g.progress = g.store.Load()
-		g.loadLevelData(lv)
-
-		keyPos := make(map[[2]int]bool, len(g.keyPos))
-		for pos := range g.keyPos {
-			keyPos[pos] = true
-		}
-		for _, k := range engine.ParseKeys(lv.Solution) {
-			g.ed.Feed(k)
-			delete(keyPos, [2]int{g.ed.Row(), g.ed.Col()})
-		}
-		cell := g.cellAt(g.ed.Row(), g.ed.Col())
-		if len(keyPos) != 0 || cell != '$' {
-			t.Fatalf("[iter %d] :drill w 생성기 해로 클리어 안 됨: 남은 keyPos=%v cell=%q map=%v sol=%q",
-				i, keyPos, cell, lv.Map, lv.Solution)
-		}
-	}
+	checkDrillSolvable(t, "word", generateDrillWord, 2)
 }
 
-// TestDrillFindGeneratorSolvable 은 B2: :drill f 가 생성하는 문제 100개가
-// 전부 생성기 자신의 그리디 해(fK 반복 + f$)로 클리어되는지 확인한다.
+// TestDrillFindGeneratorSolvable 은 :drill f 가 생성하는 문제 100개가 전부
+// 생성기 자신의 그리디 해(fK 반복 + f$)로 클리어되는지 확인한다.
 func TestDrillFindGeneratorSolvable(t *testing.T) {
-	rng := rand.New(rand.NewSource(3))
-	for i := 0; i < 100; i++ {
-		lv := generateDrillFind(rng)
-
-		g := &Game{store: store.New()}
-		g.progress = g.store.Load()
-		g.loadLevelData(lv)
-
-		keyPos := make(map[[2]int]bool, len(g.keyPos))
-		for pos := range g.keyPos {
-			keyPos[pos] = true
-		}
-		for _, k := range engine.ParseKeys(lv.Solution) {
-			g.ed.Feed(k)
-			delete(keyPos, [2]int{g.ed.Row(), g.ed.Col()})
-		}
-		cell := g.cellAt(g.ed.Row(), g.ed.Col())
-		if len(keyPos) != 0 || cell != '$' {
-			t.Fatalf("[iter %d] :drill f 생성기 해로 클리어 안 됨: 남은 keyPos=%v cell=%q map=%v sol=%q",
-				i, keyPos, cell, lv.Map, lv.Solution)
-		}
-	}
+	checkDrillSolvable(t, "find", generateDrillFind, 3)
 }
 
-// TestDrillBugGeneratorSolvable 은 B2: :drill x 가 생성하는 문제 100개가
-// 전부 생성기 자신의 그리디 해(hjkl + x)로 클리어되는지 확인한다. g.ed.Feed
-// 가 아니라 g.feed(게임 레벨 디스패치)로 흘려 넣어야 A5(x 를 제자리 치환으로
-// 처리)를 실제로 타서, 버그가 출구/다른 버그와 같은 줄에서 왼쪽에 있는
-// 경우까지 좌표 desync 없이 검증된다.
+// TestDrillBugGeneratorSolvable 은 :drill x 가 생성하는 문제 100개가 전부
+// 생성기 자신의 그리디 해(hjkl + x)로 클리어되는지 확인한다. g.ed.Feed 가
+// 아니라 g.feed(게임 레벨 디스패치)로 흘려 넣어야 x 의 제자리 치환 처리를
+// 실제로 타서, 버그가 출구/다른 버그와 같은 줄에서 왼쪽에 있는 경우까지
+// 좌표 desync 없이 검증된다(checkDrillSolvable 을 못 쓰는 이유).
 func TestDrillBugGeneratorSolvable(t *testing.T) {
 	rng := rand.New(rand.NewSource(4))
 	for i := 0; i < 100; i++ {

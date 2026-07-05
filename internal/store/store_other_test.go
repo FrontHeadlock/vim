@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// TestFileStoreRoundTrip 은 A2: 데스크톱 파일 저장의 Save→Load 왕복을 임시
+// TestFileStoreRoundTrip 은 데스크톱 파일 저장의 Save→Load 왕복을 임시
 // 디렉토리에 주입해 확인한다(중간 디렉토리가 없어도 Save 가 만들어야 함).
 func TestFileStoreRoundTrip(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "vimquest", "progress.txt")

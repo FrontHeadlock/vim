@@ -24,10 +24,10 @@ const (
 
 var face = text.NewGoXFace(basicfont.Face7x13)
 
-// whitePixel 은 drawRect 가 재사용하는 1×1 흰색 이미지(D1). 예전엔 사각형
-// 하나(커서·비주얼 하이라이트·매치 배경 등, 프레임당 수십 회)를 그릴 때마다
-// ebiten.NewImage 로 새 GPU 텍스처를 만들었다 — 이 이미지 하나를 GeoM.Scale +
-// ColorScale 로 원하는 크기·색으로 찍어내면 텍스처 할당이 0이 된다.
+// whitePixel 은 drawRect 가 재사용하는 1×1 흰색 이미지 — 사각형 하나(커서·
+// 비주얼 하이라이트·매치 배경 등, 프레임당 수십 회)를 그릴 때마다 새 GPU
+// 텍스처를 만드는 대신, 이 이미지 하나를 GeoM.Scale + ColorScale 로 원하는
+// 크기·색으로 찍어내 텍스처 할당을 0으로 만든다.
 var whitePixel = newWhitePixel()
 
 func newWhitePixel() *ebiten.Image {
@@ -36,9 +36,8 @@ func newWhitePixel() *ebiten.Image {
 	return img
 }
 
-// D3: 이 팔레트의 canonical 출처는 web/src/renderer.js 의 COL(+ index.html 의
-// CSS 변수, 3벌째) — 값을 바꿀 땐 세 곳 모두 손으로 맞춰야 한다(코드 생성은
-// 과함, refactor_code.md D3).
+// 이 팔레트의 canonical 출처는 web/src/renderer.js 의 COL(+ index.html 의
+// CSS 변수, 3벌째) — 값을 바꿀 땐 세 곳 모두 손으로 맞춰야 한다(코드 생성은 과함).
 var (
 	colBG     = color.RGBA{0x1e, 0x20, 0x2a, 0xff}
 	colFloor  = color.RGBA{0x4a, 0x4f, 0x5e, 0xff}
@@ -82,7 +81,7 @@ func (a *app) drawPlaying(screen *ebiten.Image) {
 	// 상단 HUD
 	hud := "level " + strconv.Itoa(g.LevelIndex()+1) + "/" + strconv.Itoa(game.LevelCount())
 	if g.State() == game.StateDrill {
-		// B2: lv.Title 이 생성기별 유형을 이미 담고 있다("DRILL"/"DRILL [w]"/...).
+		// lv.Title 이 생성기별 유형을 이미 담고 있다("DRILL"/"DRILL [w]"/...).
 		hud = lv.Title + "   streak " + strconv.Itoa(g.DrillStreak())
 	}
 	if lv.Kind == "navigate" {
@@ -148,8 +147,8 @@ func (a *app) drawLevelClear(screen *ebiten.Image) {
 	}
 	drawChar(screen, bestLine, 340, 320, colMuted)
 
-	// B4: 내가 실제로 입력한 키 시퀀스 — 별점과 무관하게 항상 표시(제작자
-	// solution 과 달리 스포일러가 아니다).
+	// 내가 실제로 입력한 키 시퀀스 — 별점과 무관하게 항상 표시(제작자 solution
+	// 과 달리 스포일러가 아니다).
 	drawChar(screen, "yours     : "+cs.Yours, 340, 350, colText)
 	if cs.Stars == 3 {
 		drawChar(screen, "solution  : "+g.Level().Solution, 340, 380, colKey)

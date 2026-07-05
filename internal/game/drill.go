@@ -4,9 +4,9 @@ package game
 // 항상 생성기 자신이 만든 해(Solution)로 검증 가능하다. 진행은 세션
 // 한정이며 store 에 저장하지 않는다.
 //
-// B2: 인자별로 생성기가 갈린다 — :drill(기본, hjkl 이동) · :drill w(단어
-// 점프) · :drill f(find 배치) · :drill x(버그 소탕). 세션 내내 같은 유형을
-// 반복 생성한다(드릴 도중 유형이 바뀌지 않음).
+// 인자별로 생성기가 갈린다 — :drill(기본, hjkl 이동) · :drill w(단어 점프) ·
+// :drill f(find 배치) · :drill x(버그 소탕). 세션 내내 같은 유형을 반복
+// 생성한다(드릴 도중 유형이 바뀌지 않음).
 
 import (
 	"math/rand"
@@ -32,7 +32,7 @@ const (
 const drillMaxRounds = 1000
 
 // enterDrill 은 :drill 모드로 전환하고 kind 에 맞는 생성기로 첫 문제를 만든다.
-// kind: ""/"nav"(기본, hjkl) · "w"(단어 점프) · "f"(find 배치) · "x"(버그 소탕).
+// kind: ""(기본, hjkl) · "w"(단어 점프) · "f"(find 배치) · "x"(버그 소탕).
 // 알 수 없는 kind 는 기본(hjkl)으로 조용히 대체한다(터미널처럼 무반응 —
 // runExCommand 의 미인식 명령 처리와 같은 원칙).
 func (g *Game) enterDrill(kind string) {
@@ -90,8 +90,8 @@ func generateDrill(rng *rand.Rand) Level {
 }
 
 // generateDrillBug 는 버그(*) 소탕 연습 문제를 만든다 — 열쇠 없이 버그를
-// 전부 처치(x)한 뒤 출구로 가는, hjkl+x 반복 훈련. A5(x 를 제자리 치환으로
-// 처리)가 선행돼 있어 버그 처치가 다른 좌표를 밀지 않음을 전제한다.
+// 전부 처치(x)한 뒤 출구로 가는, hjkl+x 반복 훈련. x 처치는 제자리 치환이라
+// (game.go feed 참고) 다른 좌표를 밀지 않는다.
 func generateDrillBug(rng *rand.Rand) Level {
 	numBugs := 3 + rng.Intn(4) // 3~6
 	lines, sol := drillGridBase(rng, numBugs, '*', "x")

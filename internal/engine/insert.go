@@ -2,7 +2,7 @@ package engine
 
 // insert.go — Insert 모드.
 
-func (e *Editor) enterInsert(_ bool) {
+func (e *Editor) enterInsert() {
 	e.pushUndo()
 	e.mode = ModeInsert
 	e.clamp()
@@ -67,8 +67,8 @@ func (e *Editor) feedInsert(k Key) {
 }
 
 // finishInsertDot 은 Insert 진입부터 esc 까지의 키 시퀀스를 dot 으로 저장한다
-// — 단, 버퍼가 실제로 바뀌었을 때만(B2: "i<esc>" 같은 무변경 insert 가 dot 을
-// "아무 일도 안 하는 반복"으로 오염시키지 않게 한다).
+// — 단, 버퍼가 실제로 바뀌었을 때만. "i<esc>" 같은 무변경 insert 가 dot 을
+// "아무 일도 안 하는 반복"으로 오염시키지 않기 위함이다.
 func (e *Editor) finishInsertDot() {
 	if e.replaying {
 		return

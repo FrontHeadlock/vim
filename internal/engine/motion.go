@@ -56,24 +56,15 @@ func (e *Editor) motionOnce(cmd rune) {
 }
 
 func (e *Editor) nextWordStart(r, c int, big bool) (int, int) {
-	cls := func(ch rune) int {
-		if big {
-			if ch == ' ' || ch == '\t' {
-				return 0
-			}
-			return 1
-		}
-		return charClass(ch)
-	}
 	l := e.lines[r]
 	if c < len(l) {
-		start := cls(l[c])
-		for c < len(l) && cls(l[c]) == start && start != 0 {
+		start := classOf(l[c], big)
+		for c < len(l) && classOf(l[c], big) == start && start != 0 {
 			c++
 		}
 	}
 	for {
-		for c < len(l) && cls(l[c]) == 0 {
+		for c < len(l) && classOf(l[c], big) == 0 {
 			c++
 		}
 		if c < len(l) {
@@ -88,22 +79,13 @@ func (e *Editor) nextWordStart(r, c int, big bool) (int, int) {
 		r++
 		l = e.lines[r]
 		c = 0
-		if len(l) > 0 && cls(l[0]) != 0 {
+		if len(l) > 0 && classOf(l[0], big) != 0 {
 			return r, 0
 		}
 	}
 }
 
 func (e *Editor) prevWordStart(r, c int, big bool) (int, int) {
-	cls := func(ch rune) int {
-		if big {
-			if ch == ' ' || ch == '\t' {
-				return 0
-			}
-			return 1
-		}
-		return charClass(ch)
-	}
 	c--
 	for {
 		if c < 0 {
@@ -117,9 +99,9 @@ func (e *Editor) prevWordStart(r, c int, big bool) (int, int) {
 			}
 		}
 		l := e.lines[r]
-		if c >= 0 && cls(l[c]) != 0 {
-			k := cls(l[c])
-			for c > 0 && cls(l[c-1]) == k {
+		if c >= 0 && classOf(l[c], big) != 0 {
+			k := classOf(l[c], big)
+			for c > 0 && classOf(l[c-1], big) == k {
 				c--
 			}
 			return r, c
@@ -129,19 +111,10 @@ func (e *Editor) prevWordStart(r, c int, big bool) (int, int) {
 }
 
 func (e *Editor) nextWordEnd(r, c int, big bool) (int, int) {
-	cls := func(ch rune) int {
-		if big {
-			if ch == ' ' || ch == '\t' {
-				return 0
-			}
-			return 1
-		}
-		return charClass(ch)
-	}
 	c++
 	for {
 		l := e.lines[r]
-		for c < len(l) && cls(l[c]) == 0 {
+		for c < len(l) && classOf(l[c], big) == 0 {
 			c++
 		}
 		if c >= len(l) {
@@ -155,8 +128,8 @@ func (e *Editor) nextWordEnd(r, c int, big bool) (int, int) {
 			c = 0
 			continue
 		}
-		k := cls(l[c])
-		for c+1 < len(l) && cls(l[c+1]) == k {
+		k := classOf(l[c], big)
+		for c+1 < len(l) && classOf(l[c+1], big) == k {
 			c++
 		}
 		return r, c
@@ -164,8 +137,8 @@ func (e *Editor) nextWordEnd(r, c int, big bool) (int, int) {
 }
 
 // findCharPos 는 l 에서 col 기준 f/t/F/T 한 번의 이동 결과 열을 계산한다
-// (B3: findChar/opFind 가 각각 복제하던 4분기 탐색을 하나로 통합). ok=false 면
-// 대상 문자를 못 찾은 것 — 호출자는 이전 위치를 그대로 유지해야 한다.
+// (findChar/opFind 가 공유). ok=false 면 대상 문자를 못 찾은 것 — 호출자는
+// 이전 위치를 그대로 유지해야 한다.
 func findCharPos(l []rune, col int, cmd, ch rune) (int, bool) {
 	switch cmd {
 	case 'f':
@@ -232,7 +205,7 @@ func (e *Editor) repeatFind(reverse bool) {
 
 // gotoLineOr 는 count>0 이면 count 번째 줄로, 아니면 fallbackRow 로 이동한다.
 // GotoLine(G 용: count 없으면 마지막 줄)과 gotoLineTop(gg 용: count 없으면
-// 첫 줄)이 기본값만 다르고 본문이 같아서(B6) 공유한다.
+// 첫 줄)이 기본값만 다르고 본문이 같아서 공유한다.
 func (e *Editor) gotoLineOr(count, fallbackRow int) {
 	if count > 0 {
 		e.row = count - 1

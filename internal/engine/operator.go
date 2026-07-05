@@ -124,9 +124,9 @@ func (e *Editor) applyOpMotion(cmd rune) bool {
 	return true
 }
 
-// opFind 는 d/c/y + f/F/t/T 조합을 처리한다. count 는 findChar(모션 단독 f/t)와
-// 동일하게 반복 탐색으로 지원한다(B3 — 예전엔 e.takeCount() 로 소비만 하고
-// 버려서 "d2fl" 이 "dfl" 처럼 동작했다).
+// opFind 는 d/c/y + f/F/t/T 조합을 처리한다. count 는 findChar(모션 단독
+// f/t)와 동일하게 반복 탐색으로 지원한다 — 그냥 소비만 하고 버리면 "d2fl"
+// 이 "dfl" 처럼 동작한다.
 func (e *Editor) opFind(cmd, ch rune) {
 	count := e.takeCount()
 	l := e.line()
@@ -181,15 +181,14 @@ func (e *Editor) applyCharRange(op rune, c1, c2 int) {
 
 // applyLinewise 는 줄 단위 연산자(dd cc yy / d+j 등). count 는 e.count(현재
 // 대기 중인 카운트)에서 소비한다 — 호출 전에 카운트가 아직 안 쓰였어야 하는
-// 암묵 계약이 있다(B5). 이미 count 를 손에 쥔 호출부는 applyLinewiseN 을 직접 쓸 것.
+// 암묵 계약이 있다. 이미 count 를 손에 쥔 호출부는 applyLinewiseN 을 직접 쓸 것.
 func (e *Editor) applyLinewise(op rune) {
 	e.applyLinewiseN(op, e.takeCount())
 }
 
-// applyLinewiseN 은 applyLinewise 의 명시적 count 버전. e.count 상태를 암묵
-// 인자로 쓰지 않는다 — visualOperate 가 예전엔 e.count = r2-r1+1 로 상태
-// 필드를 임시 채운 뒤 이 함수(당시 applyLinewise)가 takeCount 로 꺼내 쓰는
-// 식이라, 호출 순서에 묶인 계약이 리팩터링 시 깨지기 쉬웠다(B5).
+// applyLinewiseN 은 applyLinewise 의 명시적 count 버전 — e.count 상태를
+// 암묵 인자로 쓰지 않는다. 호출 순서에 묶인 암묵 계약(e.count 를 미리
+// 채워두고 내부에서 takeCount 로 꺼내 쓰는 식)은 리팩터링 시 깨지기 쉽다.
 func (e *Editor) applyLinewiseN(op rune, count int) {
 	r1 := e.row
 	r2 := e.row + count - 1
@@ -203,10 +202,10 @@ func (e *Editor) applyLinewiseN(op rune, count int) {
 		e.row = r1
 		// col 을 새 현재 줄 길이에 맞춰 다시 clamp — Visual 다중 줄 yank
 		// 폴백(visualOperate)처럼 row 가 이전보다 훨씬 짧은 줄로 바뀔 수 있어,
-		// 안 하면 col 이 그 줄 길이를 넘어선 채로 남는다(F3 fuzz 로 발견:
-		// "wvEEEy" 가 col 범위 밖 패닉을 냄). firstNonBlank 로 강제 이동하지
-		// 않는 이유는 yank 는 실제 vim 에서도 커서 열을 바꾸지 않기 때문 —
-		// clamp() 는 이미 유효한 col 은 그대로 두고 넘친 경우만 자른다.
+		// 안 하면 col 이 그 줄 길이를 넘어선 채로 남는다(fuzz 테스트가 "wvEEEy"
+		// 로 col 범위 밖 패닉을 발견). firstNonBlank 로 강제 이동하지 않는
+		// 이유는 yank 는 실제 vim 에서도 커서 열을 바꾸지 않기 때문 — clamp()
+		// 는 이미 유효한 col 은 그대로 두고 넘친 경우만 자른다.
 		e.clamp()
 	case 'd':
 		e.pushUndo()

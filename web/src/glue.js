@@ -25,7 +25,7 @@
 
 let vqRenderer = null;
 let vqTickRunning = false;
-let vqLastState = null; // B4: COPY 버튼이 읽는, 마지막으로 그린 스냅샷
+let vqLastState = null; // COPY 버튼이 읽는, 마지막으로 그린 스냅샷
 
 // vqDraw 는 렌더러에 그리는 동시에 vqLastState 를 갱신하는 유일한 창구다 —
 // COPY 버튼(vqCopySolution)이 별도 Go 호출 없이 마지막 클리어 화면 데이터를
@@ -64,7 +64,7 @@ function vqCallAndDraw(fn) {
   }
 }
 
-// vqCopySolution 은 B4: 클리어 화면의 "yours" 를 VimGolf 식 한 줄로 클립보드에
+// vqCopySolution 은 클리어 화면의 "yours" 를 VimGolf 식 한 줄로 클립보드에
 // 복사한다("VimQuest 3-3 · 5 keys (par 3): wdwj."). 클리어 화면이 아니거나
 // yours 가 비어 있으면 조용히 무시(터미널 어법 — 에러 팝업 없음).
 function vqCopySolution() {

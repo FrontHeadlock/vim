@@ -44,11 +44,11 @@ type Game struct {
 
 	state   State
 	strokes int
-	myKeys  []engine.Key // B4: 이번 시도의 입력 기록(클리어 화면 "yours" 표시·복사용)
+	myKeys  []engine.Key // 이번 시도의 입력 기록(클리어 화면 "yours" 표시·복사용)
 
 	clear ClearStats
 
-	selWorld, selLevel int // C3: h/l 이 selWorld, j/k 가 selLevel 을 움직인다(예전 selRow/selCol 은 축이 뒤바뀐 이름이었다)
+	selWorld, selLevel int // h/l 이 selWorld, j/k 가 selLevel 을 움직인다
 
 	store    store.Store
 	progress map[string]store.LevelProgress
@@ -60,7 +60,7 @@ type Game struct {
 	exBuf  []rune
 
 	drillRng       *rand.Rand
-	drillKind      string // B2: ""(hjkl 기본) · "w" · "f" · "x" — 세션 내내 고정
+	drillKind      string // ""(hjkl 기본) · "w" · "f" · "x" — 세션 내내 고정
 	drillStreak    int
 	drillTotalKeys int
 	drillTotalPar  int
@@ -167,23 +167,19 @@ func (g *Game) feed(k engine.Key) {
 		g.exBuf = nil
 		return
 	}
-	// B5: ex-command 진입(':' 자체 포함) 이후의 키는 strokes 에서 뺀다 —
-	// ':help' 를 열어볼수록 별점이 깎이는 역인센티브를 없앤다. ':' 는 편집이
-	// 아니라 메타 조작(레벨 이동/도움말)이라 VimGolf 의 "타이핑한 건 다 센다"와는
-	// 성격이 다르다고 판단했다(모든 레벨 Solution 에 ex-command 가 없어 기존
-	// par 에는 영향 없음을 확인).
+	// ex-command 진입(':' 자체 포함) 이후의 키는 strokes 에서 뺀다 — ':help' 를
+	// 열어볼수록 별점이 깎이는 역인센티브를 없앤다. ':' 는 편집이 아니라 메타
+	// 조작(레벨 이동/도움말)이라 VimGolf 의 "타이핑한 건 다 센다"와는 성격이
+	// 다르다고 판단했다(모든 레벨 Solution 에 ex-command 가 없어 par 무영향).
 	g.strokes++
-	g.myKeys = append(g.myKeys, k) // B4: strokes 와 동일 기준으로 "내 풀이" 기록
+	g.myKeys = append(g.myKeys, k) // strokes 와 동일 기준으로 "내 풀이" 기록
 	if g.lv.Kind == "navigate" && !navigateAllows(g.ed, k) {
 		g.fireEvent("blocked", g.ed.Row(), g.ed.Col())
 		return
 	}
-	// A5: navigate 의 x 는 Vim 의 일반 삭제(deleteChars)로 흘려 넣지 않는다.
-	// 예전엔 g.ed.Feed(k) 를 그대로 태워 rune 을 물리적으로 삭제했는데, 버그(*)가
-	// 같은 줄의 K/$ 보다 왼쪽에 있으면 삭제로 줄이 밀려 keyPos(로드 시 고정 캡처)와
-	// 라이브 판정 좌표가 어긋났다. 버그 위에서만 '.'로 제자리 치환하고, 그 외
-	// 칸에서는 아무 일도 하지 않는다 — 좌표가 절대 안 밀리므로 이 결함 부류가
-	// 통째로 사라진다.
+	// navigate 의 x 는 일반 삭제(deleteChars)가 아니라 '*'→'.' 제자리 치환이다.
+	// 삭제는 같은 줄 오른쪽 문자를 전부 당겨서, 로드 시 고정 캡처된 keyPos 와
+	// 라이브 판정 좌표(cellAt)를 어긋나게 만든다 — 길이 불변 치환만 허용.
 	if g.lv.Kind == "navigate" && k.R == 'x' {
 		if g.cellAt(g.ed.Row(), g.ed.Col()) == '*' {
 			g.ed.SetCell(g.ed.Row(), g.ed.Col(), '.')
@@ -246,7 +242,7 @@ func (g *Game) runExCommand(cmd string) {
 	case cmd == "help":
 		platform.ShowOverlay("intro")
 	case cmd == "drill" || strings.HasPrefix(cmd, "drill "):
-		// B2: ":drill w"/":drill f"/":drill x" — 인자별로 다른 생성기(drill.go).
+		// ":drill w"/":drill f"/":drill x" — 인자별로 다른 생성기(drill.go).
 		g.enterDrill(strings.TrimSpace(strings.TrimPrefix(cmd, "drill")))
 	default:
 		if n, err := strconv.Atoi(cmd); err == nil && n > 0 {
@@ -309,12 +305,11 @@ func (g *Game) Input(k engine.Key) {
 		if k.S == "cr" {
 			g.LoadLevel(g.levelIdx + 1)
 		} else if k.R == 'r' {
-			g.LoadLevel(g.levelIdx)
+			g.RestartCurrent()
 		}
 	case StateLevelSelect:
 		g.inputLevelSelect(k)
 	case StateAllClear:
-		// F2: 입력 라우팅은 상태 무관 — 어떤 키가 유효한지는 여기서만 결정한다.
 		if k.S == "cr" || k.S == "esc" {
 			g.EnterLevelSelect()
 		}
@@ -425,9 +420,9 @@ func (g *Game) checkWin() {
 func (g *Game) advance() {
 	par := g.Par()
 	prevBest := g.recordClear()
-	// C1: "NEW!" 베스트 판정은 게임 규칙(엔진)이 여기서 한 번만 계산해 Snapshot 으로
-	// 흘려보낸다 — 예전엔 render.go 와 renderer.js 가 각자 Best==0||Strokes<Best 를
-	// 복제해 스포일러 방지 규칙 소유 원칙(snapshot.go 첫머리 주석)과 어긋났었다.
+	// "NEW!" 베스트 판정은 여기서 한 번만 계산해 Snapshot 으로 흘려보낸다 —
+	// 렌더러가 Best==0||Strokes<Best 를 각자 재계산하면 스포일러 방지 규칙
+	// 소유 원칙(snapshot.go 첫머리 주석)과 어긋난다.
 	g.clear = ClearStats{
 		Strokes: g.strokes,
 		Par:     par,

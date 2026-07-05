@@ -2,13 +2,6 @@ package engine
 
 // normal.go — Normal 모드 키 디스패치(editor.go 의 Feed 가 여기로 넘긴다).
 
-// maxCount 는 count 접두사(예: "12dd")의 상한. 실제 레벨 어떤 것도 이 근처를
-// 요구하지 않지만, 상한이 없으면 "2000000000B" 같은 입력이 doMotion/
-// motionSpan(operator.go)/findChar 의 O(count) 반복 루프를 그대로 실행해
-// 수 초~수십 초 동안 멈춘다 — 웹 빌드에선 브라우저 탭이 그대로 얼어붙는다는
-// 뜻이라 더 심각하다(F3 fuzz 로 발견: "2000000000Bxxx..." 가 실제로 멈춤).
-const maxCount = 9999
-
 func (e *Editor) feedNormal(k Key) {
 	// dot(.) 반복은 별도 처리(녹화 안 함)
 	if k.R == '.' && e.IsCmdStart() {
@@ -18,11 +11,10 @@ func (e *Editor) feedNormal(k Key) {
 	if e.IsCmdStart() && !e.replaying {
 		e.curKeys = nil
 		e.changed = false
-		// B2: dot 재생 중에는 finishIfBoundary/finishInsertDot 이 replaying
-		// 가드로 commitUndoIfChanged 를 건너뛴다 — 재생이 끝난 뒤 undoPending 이
-		// true 로 남아있으면 그 다음 진짜 커맨드가 그 오래된 스냅샷과 비교돼
-		// dot 을 엉뚱한 키(예: 순수 모션 하나)로 덮어쓴다. 새 커맨드 시작점에서
-		// 반드시 정리한다.
+		// dot 재생 중엔 finishIfBoundary/finishInsertDot 이 replaying 가드로
+		// commitUndoIfChanged 를 건너뛰어 undoPending 이 true 로 남을 수 있다 —
+		// 방치하면 다음 진짜 커맨드가 그 오래된 스냅샷과 비교돼 dot 을 엉뚱한
+		// 키로 덮어쓰므로, 새 커맨드 시작점에서 반드시 정리한다.
 		e.undoPending = false
 	}
 	if !e.replaying {
@@ -62,12 +54,7 @@ func (e *Editor) feedNormal(k Key) {
 		return
 	}
 
-	// count 입력
-	if r >= '1' && r <= '9' || (r == '0' && e.count > 0) {
-		e.count = e.count*10 + int(r-'0')
-		if e.count > maxCount || e.count < 0 { // 오버플로 포함 상한 고정
-			e.count = maxCount
-		}
+	if e.accumCount(r) {
 		return
 	}
 
@@ -151,16 +138,16 @@ func (e *Editor) feedNormal(k Key) {
 	case 'P':
 		e.paste(false)
 	case 'i':
-		e.enterInsert(false)
+		e.enterInsert()
 	case 'a':
 		e.col++
-		e.enterInsert(false)
+		e.enterInsert()
 	case 'I':
 		e.col = firstNonBlank(e.line())
-		e.enterInsert(false)
+		e.enterInsert()
 	case 'A':
 		e.col = len(e.line())
-		e.enterInsert(false)
+		e.enterInsert()
 	case 'o':
 		e.openLine(true)
 	case 'O':
@@ -179,8 +166,8 @@ func (e *Editor) feedNormal(k Key) {
 }
 
 // finishIfBoundary 는 명령이 끝났고(Normal 복귀) 버퍼가 실제로 바뀌었으면
-// dot 저장(B2: "무변경 커밋" — 예: `~`/`r` 가 결과적으로 아무것도 바꾸지
-// 않았으면 undo 스택에도 dot 에도 남기지 않는다).
+// dot 을 저장한다 — `~`/`r` 가 결과적으로 아무것도 바꾸지 않았으면 undo
+// 스택에도 dot 에도 남기지 않는다("무변경 커밋" 배제).
 func (e *Editor) finishIfBoundary() {
 	if e.replaying {
 		return
