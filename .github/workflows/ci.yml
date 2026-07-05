@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  go:
+    name: Go test / vet / fmt / fuzz
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+      - name: gofmt
+        run: |
+          fmt_out="$(gofmt -l .)"
+          if [ -n "$fmt_out" ]; then
+            echo "gofmt 가 다음 파일에 필요합니다:"
+            echo "$fmt_out"
+            exit 1
+          fi
+      - name: go vet
+        run: go vet ./...
+      - name: go test
+        run: go test ./...
+      - name: fuzz smoke (엔진 불변식, F3)
+        run: go test ./internal/engine/... -run '^$' -fuzz FuzzEditorNeverPanics -fuzztime 20s
+
+  web-build:
+    name: TinyGo web build + 크기 예산 게이트
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+      - name: install TinyGo
+        run: |
+          wget -q https://github.com/tinygo-org/tinygo/releases/download/v0.34.0/tinygo_0.34.0_amd64.deb
+          sudo dpkg -i tinygo_0.34.0_amd64.deb
+          echo "/usr/local/tinygo/bin" >> "$GITHUB_PATH"
+      - name: build-web (scripts/build.sh — 크기 예산 게이트 포함, 여기서 재구현하지 않음)
+        run: ./scripts/build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist/
+
+  e2e:
+    name: Playwright 스모크 (브라우저→wasm 브리지, F4)
+    runs-on: ubuntu-latest
+    needs: web-build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist/
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: npm ci
+        working-directory: web/e2e
+        run: npm ci
+      - name: install Playwright browsers
+        working-directory: web/e2e
+        run: npx playwright install --with-deps chromium
+      - name: playwright test
+        working-directory: web/e2e
+        run: npx playwright test
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: web/e2e/playwright-report/

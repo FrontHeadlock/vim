@@ -1,4 +1,4 @@
-.PHONY: build build-web build-desktop test clean help
+.PHONY: build build-web build-desktop test test-v clean help
 
 # 기본 타겟
 all: build
@@ -15,11 +15,13 @@ build-web:
 build-desktop:
 	@./scripts/build_desktop.sh
 
-# 테스트 실행
+# 테스트 실행 (요약만 — 패키지별 결과 한 줄씩, E3)
 test:
-	@echo "▶ 테스트 실행 중..."
+	@go test ./...
+
+# 테스트 실행 (상세 — 개별 테스트 이름까지 전부 출력)
+test-v:
 	@go test ./... -v
-	@echo "✅ 테스트 완료"
 
 # 빌드 산출물 정리
 clean:
@@ -36,6 +38,7 @@ help:
 	@echo "  make build        전체 빌드"
 	@echo "  make build-web    웹 빌드 (TinyGo WASM)"
 	@echo "  make build-desktop 데스크톱 빌드 (Ebiten)"
-	@echo "  make test         테스트 실행"
+	@echo "  make test         테스트 실행 (요약)"
+	@echo "  make test-v       테스트 실행 (상세, -v)"
 	@echo "  make clean        빌드 산출물 정리"
 	@echo "  make help         이 도움말 표시"
