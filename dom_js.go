@@ -70,18 +70,6 @@ func jsSfx(name string) {
 	fn.Invoke(name)
 }
 
-// registerJSHooks 는 HTML 버튼이 호출할 전역 함수를 노출한다.
-func registerJSHooks() {
-	js.Global().Set("vimquestReset", js.FuncOf(func(js.Value, []js.Value) any {
-		requestReset()
-		return nil
-	}))
-	js.Global().Set("vimquestRestart", js.FuncOf(func(js.Value, []js.Value) any {
-		requestRestart()
-		return nil
-	}))
-	js.Global().Set("vimquestLevelSelect", js.FuncOf(func(js.Value, []js.Value) any {
-		requestLevelSelect()
-		return nil
-	}))
-}
+// vimquestReset/Restart/LevelSelect 버튼 훅은 web_js.go 가 Game 을 직접 호출하는
+// 형태로 노출한다(Phase 4 L2 전에는 request* 폴링 플래그를 거쳤다 — 이제
+// 이벤트 구동이라 폴링이 필요 없다).

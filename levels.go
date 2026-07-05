@@ -523,4 +523,77 @@ var levels = []Level{
 		Target:   []string{"keep", "BAD2"},
 		Solution: "jddddu",
 	},
+
+	// ───────────────────────── Phase 4 L3 보강 — 종합 레벨 ─────────────────────────
+	{
+		ID:    "5-4",
+		Kind:  "navigate",
+		Title: "5-4  Deep Search",
+		Hint:  "Three keys are scattered through the swamp. Search once, then keep repeating to collect them all before heading to the exit.",
+		Cmds: []Cmd{
+			{"/{pattern}", "search forward"},
+			{"n", "repeat last search forward"},
+		},
+		Map: []string{
+			"@....K.........K.............K.......$",
+		},
+		Solution: "/K<cr>nn/$<cr>",
+	},
+	{
+		ID:    "6-5",
+		Kind:  "navigate",
+		Title: "6-5  Boss: Count & Find",
+		Hint:  "Combine a counted word-jump with a direct find to cross the canyon in one clean run.",
+		Cmds: []Cmd{
+			{"{N}w", "jump N words forward"},
+			{"f{char}", "leap to that char"},
+		},
+		Map: []string{
+			"@one two three K x.y.z.w.$",
+		},
+		Solution: "4wf$",
+	},
+	{
+		ID:    "7-4",
+		Kind:  "edit",
+		Title: "7-4  Visual + Text Object Combo",
+		Hint:  "Clear the first intruder with a Visual text-object delete, then change the second one with a text-object change.",
+		Cmds: []Cmd{
+			{"v", "enter Visual"},
+			{"aw", "'a word' text object (extends selection)"},
+			{"d", "delete the selection"},
+			{"ciw", "change inner word"},
+		},
+		Map:      []string{"cut BAD here fix OLD there"},
+		Target:   []string{"cut here fix NEW there"},
+		Solution: "wvawdwwciwNEW<esc>",
+	},
+	{
+		ID:    "8-5",
+		Kind:  "edit",
+		Title: "8-5  Line Shuffle",
+		Hint:  "One line is out of place at the top. Cut it and drop it back in at the bottom.",
+		Cmds: []Cmd{
+			{"dd", "delete the whole line"},
+			{"j", "down a line"},
+			{"p", "paste after cursor line"},
+		},
+		Map:      []string{"third", "first", "second"},
+		Target:   []string{"first", "second", "third"},
+		Solution: "ddjp",
+	},
+	{
+		ID:    "8-6",
+		Kind:  "edit",
+		Title: "8-6  Boss: Everything At Once",
+		Hint:  "One last gauntlet — delete a stray word, change another word, and swap two letters, all in a row.",
+		Cmds: []Cmd{
+			{"daw", "delete a word incl. its space"},
+			{"ciw", "change the word under cursor"},
+			{"xp", "swap two chars"},
+		},
+		Map:      []string{"one BAD two", "x = OLD", "abcd"},
+		Target:   []string{"one two", "x = 99", "bacd"},
+		Solution: "wdawj$ciw99<esc>j0xp",
+	},
 }

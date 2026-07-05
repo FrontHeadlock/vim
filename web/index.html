@@ -276,7 +276,7 @@
     </div>
   </div>
 
-  <!-- Ebiten canvas is auto-created below in <body> -->
+  <canvas id="game" width="960" height="600"></canvas>
 
   <footer>
     move <kbd>h</kbd><kbd>j</kbd><kbd>k</kbd><kbd>l</kbd> &nbsp; word <kbd>w</kbd><kbd>b</kbd><kbd>e</kbd> &nbsp;
@@ -350,6 +350,8 @@
   </div>
 
 <script src="wasm_exec.js"></script>
+<script src="renderer.js"></script>
+<script src="glue.js"></script>
 <script>
   // KO/EN manual toggle
   function toggleLang(){
@@ -479,10 +481,11 @@
     observer.observe(hintEl, { childList: true, characterData: true, subtree: true });
   })();
 
-  // load WASM
+  // load WASM (TinyGo) — go.run() 은 web_js.go 의 main() 을 실행해
+  // vqInput/vqState/vqTick 을 전역에 등록한 뒤 select{} 에서 대기한다.
   const go = new Go();
   WebAssembly.instantiateStreaming(fetch('game.wasm'), go.importObject)
-    .then((res) => { go.run(res.instance); })
+    .then((res) => { go.run(res.instance); vqInit(); })
     .catch((err) => { document.getElementById('hint').textContent = 'Failed to load game: ' + err; });
 </script>
 </body>

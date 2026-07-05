@@ -1,6 +1,7 @@
 package main
 
 import (
+	"math/rand"
 	"strings"
 	"testing"
 )
@@ -241,5 +242,121 @@ func TestColonInInsertModeIsLiteral(t *testing.T) {
 	}
 	if !strings.Contains(strings.Join(g.ed.Lines(), "\n"), ":") {
 		t.Fatal("Insert 모드에서 ':' 이 문자로 입력되지 않음")
+	}
+}
+
+// TestInputLevelClearEnterAdvances 는 클리어 화면에서 Input(cr) 이 다음 레벨로
+// 넘어가는지 확인한다(Phase 4 L1: Update()/updateLevelClear() 를 대체한 Input 경로).
+func TestInputLevelClearEnterAdvances(t *testing.T) {
+	g := NewGame()
+	playNav(g, "jjllll")  // 열쇠 획득
+	playNav(g, "jjlllll") // 출구 도달 → stateLevelClear
+	if g.state != stateLevelClear {
+		t.Fatalf("사전조건 실패: state=%v want stateLevelClear", g.state)
+	}
+	g.Input(SpecialKey("cr"))
+	if g.levelIdx != 1 || g.state != statePlaying {
+		t.Fatalf("Enter 후 levelIdx=%d state=%v want 1,statePlaying", g.levelIdx, g.state)
+	}
+}
+
+// TestInputLevelClearRetry 는 클리어 화면에서 Input('r') 이 같은 레벨을
+// strokes=0 으로 리로드하는지 확인한다.
+func TestInputLevelClearRetry(t *testing.T) {
+	g := NewGame()
+	playNav(g, "jjllll")
+	playNav(g, "jjlllll")
+	if g.state != stateLevelClear {
+		t.Fatalf("사전조건 실패: state=%v want stateLevelClear", g.state)
+	}
+	g.Input(RuneKey('r'))
+	if g.levelIdx != 0 || g.state != statePlaying || g.strokes != 0 {
+		t.Fatalf("'r' 후 levelIdx=%d state=%v strokes=%d want 0,statePlaying,0", g.levelIdx, g.state, g.strokes)
+	}
+}
+
+// TestInputLevelSelectNavigation 은 레벨 선택 화면에서 h/j/k/l 로 커서를 옮기고
+// 잠긴 레벨은 Enter 로 입장되지 않으며 unlocked 레벨은 입장되는지 확인한다.
+func TestInputLevelSelectNavigation(t *testing.T) {
+	g := NewGame()
+	g.enterLevelSelect() // 1-1 위치, W1(selRow=0) selCol=0
+
+	g.Input(RuneKey('l')) // W2 로 이동 — 2-1 은 아직 잠김
+	g.Input(SpecialKey("cr"))
+	if g.state != stateLevelSelect {
+		t.Fatalf("잠긴 레벨(2-1) 진입이 막히지 않음: state=%v", g.state)
+	}
+
+	g.Input(RuneKey('h')) // W1 로 복귀 — 1-1 은 unlocked
+	g.Input(SpecialKey("cr"))
+	if g.state != statePlaying || g.levelIdx != 0 {
+		t.Fatalf("unlocked 레벨(1-1) 진입 실패: state=%v levelIdx=%d", g.state, g.levelIdx)
+	}
+}
+
+// TestInputNoStrokesOutsidePlaying 은 statePlaying 이 아닌 상태에서의 Input 이
+// strokes 를 증가시키지 않는지 확인한다(레벨 클리어 화면에서 의미 없는 키 입력).
+func TestInputNoStrokesOutsidePlaying(t *testing.T) {
+	g := NewGame()
+	playNav(g, "jjllll")
+	playNav(g, "jjlllll") // stateLevelClear
+	before := g.strokes
+	g.Input(RuneKey('x')) // 클리어 화면에서 'r'/'cr' 도 아닌 키
+	if g.strokes != before {
+		t.Fatalf("비-플레이 상태 입력이 strokes 를 증가시킴: before=%d after=%d", before, g.strokes)
+	}
+}
+
+// TestDrillGeneratorSolvable 은 :drill 이 생성하는 무작위 문제 100개가 전부
+// 생성기 자신이 산출한 Solution 으로 실제 클리어되는지 확인한다(property
+// 테스트 — 시드 고정으로 재현 가능). loadLevelData(정규 레벨과 공유하는 실제
+// 프로덕션 파싱 경로)를 그대로 재사용해 로직 중복/드리프트를 피한다.
+// advanceDrill 을 거치면 클리어 즉시 다음 문제가 자동 생성돼 검증이 꼬이므로
+// checkWin() 이 아니라 승리 조건만 직접 확인한다.
+func TestDrillGeneratorSolvable(t *testing.T) {
+	rng := rand.New(rand.NewSource(1))
+	for i := 0; i < 100; i++ {
+		lv := generateDrill(rng)
+
+		g := &Game{store: newProgressStore()}
+		g.progress = g.store.Load()
+		g.loadLevelData(lv)
+
+		keyPos := make(map[[2]int]bool, len(g.keyPos))
+		for pos := range g.keyPos {
+			keyPos[pos] = true
+		}
+
+		for _, k := range parseKeys(lv.Solution) {
+			g.ed.Feed(k)
+			delete(keyPos, [2]int{g.ed.row, g.ed.col})
+		}
+
+		cell := g.cellAt(g.ed.row, g.ed.col)
+		if len(keyPos) != 0 || cell != '$' {
+			t.Fatalf("[iter %d] 생성기 해로 클리어 안 됨: 남은 keyPos=%v cell=%q map=%v sol=%q",
+				i, keyPos, cell, lv.Map, lv.Solution)
+		}
+	}
+}
+
+// TestLoadLevelDataSetsCursorDcol 은 '@' 가 col>0 인 navigate 레벨에서 첫
+// 입력이 수직 모션(j/k)이어도 col0 으로 튀지 않는지 확인한다. loadLevelData
+// 가 e.row/e.col 만 옮기고 e.dcol(수직 모션의 목표 열)은 그대로 두면 j/k 가
+// dcol=0(SetLines 의 초기값)을 써서 커서가 엉뚱한 열로 이동한다 — :drill
+// 생성기가 무작위 시작열을 만들면서 실제로 재현해 잡아낸 결함이다.
+func TestLoadLevelDataSetsCursorDcol(t *testing.T) {
+	g := &Game{store: newProgressStore()}
+	g.progress = g.store.Load()
+	g.loadLevelData(Level{
+		Kind: "navigate",
+		Map:  []string{"....@....", ".........", "....$...."},
+	})
+	if g.ed.col != 4 {
+		t.Fatalf("초기 col=%d want 4", g.ed.col)
+	}
+	g.ed.Feed(RuneKey('j')) // 수직 모션 — dcol 이 4 로 맞춰져 있어야 col 유지
+	if g.ed.col != 4 {
+		t.Fatalf("j 이후 col=%d want 4 (dcol 이 시작 열에 맞춰지지 않음)", g.ed.col)
 	}
 }
