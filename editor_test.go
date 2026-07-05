@@ -148,3 +148,80 @@ func TestFindAndMotion(t *testing.T) {
 		t.Errorf("0: col=%d want 0", e.col)
 	}
 }
+
+// TestGotoLineWithCount 는 {N}G 가 실제로 N번째 줄로 이동하는지 확인한다.
+// (과거엔 e.count 가 takeCount() 로 이미 리셋된 뒤 참조돼 count 유무와 무관하게
+// 항상 마지막 줄로 이동하는 결함이 있었다.)
+func TestGotoLineWithCount(t *testing.T) {
+	e := NewEditor([]string{"a", "b", "c", "d", "e"})
+	feedKeys(e, "4G")
+	if e.row != 3 {
+		t.Fatalf("4G: row=%d want 3", e.row)
+	}
+}
+
+func TestGotoLineNoCountGoesLast(t *testing.T) {
+	e := NewEditor([]string{"a", "b", "c"})
+	feedKeys(e, "G")
+	if e.row != 2 {
+		t.Fatalf("G(count 없음): row=%d want 2", e.row)
+	}
+}
+
+func TestGotoLineTopWithCount(t *testing.T) {
+	e := NewEditor([]string{"a", "b", "c", "d", "e"})
+	e.row = 4
+	feedKeys(e, "2gg")
+	if e.row != 1 {
+		t.Fatalf("2gg: row=%d want 1", e.row)
+	}
+}
+
+func TestGotoLineTopNoCountGoesFirst(t *testing.T) {
+	e := NewEditor([]string{"a", "b", "c"})
+	e.row = 2
+	feedKeys(e, "gg")
+	if e.row != 0 {
+		t.Fatalf("gg(count 없음): row=%d want 0", e.row)
+	}
+}
+
+func TestSearch(t *testing.T) {
+	e := NewEditor([]string{"foo bar target baz"})
+	feedKeys(e, "/target<cr>")
+	if e.col != 8 { // "target" 시작 열
+		t.Fatalf("search cursor col=%d want 8", e.col)
+	}
+}
+
+func TestSearchRepeat(t *testing.T) {
+	e := NewEditor([]string{"x x x target x x"})
+	feedKeys(e, "/x<cr>")
+	before := e.col
+	feedKeys(e, "n")
+	if e.col == before {
+		t.Fatal("n 이 다음 매치로 이동하지 않음")
+	}
+	feedKeys(e, "N")
+	if e.col != before {
+		t.Fatalf("N 이 이전 매치로 되돌아가지 않음: col=%d want %d", e.col, before)
+	}
+}
+
+func TestSearchBackward(t *testing.T) {
+	e := NewEditor([]string{"target middle target"})
+	e.col = len(e.line()) - 1
+	feedKeys(e, "?target<cr>")
+	if e.col != 0 && e.col != 14 {
+		t.Fatalf("역검색 실패: col=%d", e.col)
+	}
+}
+
+func TestSearchEscCancels(t *testing.T) {
+	e := NewEditor([]string{"abc"})
+	r0, c0 := e.row, e.col
+	feedKeys(e, "/xyz<esc>")
+	if e.row != r0 || e.col != c0 || e.searching {
+		t.Fatal("esc 취소 후 상태가 원위치가 아니거나 searching 이 남아있음")
+	}
+}

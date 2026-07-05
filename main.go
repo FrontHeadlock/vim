@@ -137,8 +137,8 @@ func (g *Game) pestsLeft() int {
 
 // navigateAllows 는 navigate 레벨에서 편집 명령을 막고 이동+x 만 허용한다.
 func navigateAllows(e *Editor, k Key) bool {
-	if e.await != "" || e.op != 0 || e.pendObj != 0 || e.mode != ModeNormal {
-		return true // 명령 진행 중(찾기 대상 등)
+	if e.await != "" || e.op != 0 || e.pendObj != 0 || e.mode != ModeNormal || e.searching {
+		return true // 명령 진행 중(찾기 대상/검색 쿼리 입력 등)
 	}
 	if k.R == 0 {
 		return true // esc 등 특수키
@@ -148,7 +148,8 @@ func navigateAllows(e *Editor, k Key) bool {
 	}
 	switch k.R {
 	case 'h', 'j', 'k', 'l', 'w', 'b', 'e', 'W', 'B', 'E',
-		'0', '^', '$', 'f', 'F', 't', 'T', ';', ',', 'g', 'G', 'x':
+		'0', '^', '$', 'f', 'F', 't', 'T', ';', ',', 'g', 'G', 'x',
+		'/', '?', 'n', 'N':
 		return true
 	}
 	return false

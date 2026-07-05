@@ -329,4 +329,198 @@ var levels = []Level{
 		Target:   []string{"x = 42", "y = 42"},
 		Solution: "$ciw42<esc>j$.",
 	},
+
+	// ───────────────────────── W5  Search Swamp (search) ─────────────────────────
+	{
+		ID:    "5-1",
+		Kind:  "navigate",
+		Title: "5-1  Search Swamp",
+		Hint:  "The key is buried far down the swamp. Search for it instead of crawling — then search for the exit too.",
+		Cmds: []Cmd{
+			{"/{pattern}", "search forward for text"},
+			{"<cr>", "confirm search"},
+		},
+		Map: []string{
+			"@..........................K...................$",
+		},
+		Solution: "/K<cr>/$<cr>",
+	},
+	{
+		ID:    "5-2",
+		Kind:  "navigate",
+		Title: "5-2  Twin Keys",
+		Hint:  "Two keys share the swamp. Search once, then repeat the search to reach the second.",
+		Cmds: []Cmd{
+			{"/{pattern}", "search forward"},
+			{"n", "repeat last search forward"},
+		},
+		Map: []string{
+			"@.....K.......K.......$",
+		},
+		Solution: "/K<cr>n/$<cr>",
+	},
+	{
+		ID:    "5-3",
+		Kind:  "navigate",
+		Title: "5-3  Backtrack",
+		Hint:  "You'll overshoot the key if you rush to the exit. Search backward to retrieve what you missed, then forward again.",
+		Cmds: []Cmd{
+			{"/{pattern}", "search forward"},
+			{"?{pattern}", "search backward"},
+		},
+		Map: []string{
+			"@.........K.............$",
+		},
+		Solution: "/$<cr>?K<cr>/$<cr>",
+	},
+
+	// ───────────────────────── W6  Precision Peaks (count, F/t, edit count) ─────────────────────────
+	{
+		ID:    "6-1",
+		Kind:  "navigate",
+		Title: "6-1  Triple Word Hop",
+		Hint:  "Counting words one at a time is slow. Prefix w with a number to leap several words at once.",
+		Cmds: []Cmd{
+			{"{N}w", "jump N words forward (e.g. 3w)"},
+		},
+		Map: []string{
+			"@one two three K four five six $",
+		},
+		Solution: "4w4w",
+	},
+	{
+		ID:    "6-2",
+		Kind:  "navigate",
+		Title: "6-2  Backward Find",
+		Hint:  "The key is behind you this time. Use the backward find to reach it, then head for the exit.",
+		Cmds: []Cmd{
+			{"F{char}", "leap backward to that char on this line"},
+		},
+		Map: []string{
+			"K.......@..........$",
+		},
+		Solution: "FK$",
+	},
+	{
+		ID:    "6-3",
+		Kind:  "navigate",
+		Title: "6-3  Till the Key",
+		Hint:  "A till-motion stops one cell short of its target. A signpost (X) marks the spot just past the key — aim for it to land exactly on the key.",
+		Cmds: []Cmd{
+			{"t{char}", "move up to (not onto) that char"},
+		},
+		Map: []string{
+			"@..........KX.................$",
+		},
+		Solution: "tX$",
+	},
+	{
+		ID:    "6-4",
+		Kind:  "edit",
+		Title: "6-4  Delete Two Words with d2w",
+		Hint:  "Two unwanted words sit in a row. One delete-word command with a count clears them both.",
+		Cmds: []Cmd{
+			{"w", "move by word"},
+			{"d{N}w", "delete N words at once"},
+		},
+		Map:      []string{"keep BAD WORDS here"},
+		Target:   []string{"keep here"},
+		Solution: "wd2w",
+	},
+
+	// ───────────────────────── W7  Visual Valley (visual mode + text objects) ─────────────────────────
+	{
+		ID:    "7-1",
+		Kind:  "edit",
+		Title: "7-1  Visual Delete",
+		Hint:  "Select the unwanted stretch with Visual mode, then delete the whole selection at once.",
+		Cmds: []Cmd{
+			{"v", "enter Visual (charwise)"},
+			{"E", "to end of WORD"},
+			{"d", "delete the selection"},
+		},
+		Map:      []string{"keep THIS OUT keep"},
+		Target:   []string{"keep  keep"},
+		Solution: "wvEEd",
+	},
+	{
+		ID:    "7-2",
+		Kind:  "edit",
+		Title: "7-2  Yank a Word",
+		Hint:  "Duplicate the word right next to itself — yank a whole word (with its space) and paste it back before it.",
+		Cmds: []Cmd{
+			{"yaw", "yank 'a word' (incl. trailing space)"},
+			{"P", "paste before cursor"},
+		},
+		Map:      []string{"dup ME now"},
+		Target:   []string{"dup ME ME now"},
+		Solution: "wyawP",
+	},
+	{
+		ID:    "7-3",
+		Kind:  "edit",
+		Title: "7-3  Change Inner Word",
+		Hint:  "Select the word with Visual mode's text object, then change it in one motion.",
+		Cmds: []Cmd{
+			{"viw", "select inner word (Visual)"},
+			{"c", "change the selection"},
+		},
+		Map:      []string{"fix THIS please"},
+		Target:   []string{"fix OK please"},
+		Solution: "wviwcOK<esc>",
+	},
+
+	// ───────────────────────── W8  Yank & Undo Ruins (xp, ddp, p/P, u/Ctrl-r) ─────────────────────────
+	{
+		ID:    "8-1",
+		Kind:  "edit",
+		Title: "8-1  Swap Chars with xp",
+		Hint:  "Two letters are swapped. A classic one-two: delete the wrong one, then paste it back one step over.",
+		Cmds: []Cmd{
+			{"x", "delete char under cursor"},
+			{"p", "paste after cursor"},
+		},
+		Map:      []string{"abcd"},
+		Target:   []string{"bacd"},
+		Solution: "xp",
+	},
+	{
+		ID:    "8-2",
+		Kind:  "edit",
+		Title: "8-2  Swap Lines with ddp",
+		Hint:  "The lines are in the wrong order. Cut one and drop it back in on the other side.",
+		Cmds: []Cmd{
+			{"dd", "delete the whole line"},
+			{"p", "paste after cursor line"},
+		},
+		Map:      []string{"first", "second"},
+		Target:   []string{"second", "first"},
+		Solution: "ddp",
+	},
+	{
+		ID:    "8-3",
+		Kind:  "edit",
+		Title: "8-3  Paste Above with P",
+		Hint:  "You need a copy placed above, not below. Use the paste command that goes the other way.",
+		Cmds: []Cmd{
+			{"yy", "copy the line"},
+			{"P", "paste ABOVE the current line"},
+		},
+		Map:      []string{"one", "two"},
+		Target:   []string{"one", "one", "two"},
+		Solution: "yyjP",
+	},
+	{
+		ID:    "8-4",
+		Kind:  "edit",
+		Title: "8-4  Undo a Mistake",
+		Hint:  "You deleted one line too many. Undo just the last change to bring it back.",
+		Cmds: []Cmd{
+			{"dd", "delete the whole line"},
+			{"u", "undo the last change"},
+		},
+		Map:      []string{"keep", "BAD1", "BAD2"},
+		Target:   []string{"keep", "BAD2"},
+		Solution: "jddddu",
+	},
 }

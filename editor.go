@@ -1,12 +1,15 @@
 package main
 
+import "strings"
+
 // editor.go — Vim 편집 엔진(서브셋). Ebiten 과 무관한 순수 로직이라 headless 테스트가 가능하다.
 //
 // 지원: Normal / Insert / Visual / Visual-Line 모드,
 //   모션 h j k l 0 ^ $ w b e W B E f F t T ; , gg G,
 //   연산자 d c y (+모션 / +텍스트객체 / 중복 dd cc yy) + count,
 //   x X r s S D C p P, i a o O A I, u / Ctrl-r, . 반복,
-//   텍스트객체 iw aw i" a" i' a' i( a( i) a) ib i{ a{ iB i[ a[ i< a<.
+//   텍스트객체 iw aw i" a" i' a' i( a( i) a) ib i{ a{ iB i[ a[ i< a<,
+//   검색 / ? n N (pseudo-mode).
 
 type Mode int
 
@@ -66,6 +69,13 @@ type Editor struct {
 	dot       []Key
 	changed   bool // 현재 명령이 버퍼를 변경했는가
 	replaying bool
+
+	// 검색 (/ ? n N) — pseudo-mode
+	searching     bool
+	searchDir     rune   // '/' 정방향, '?' 역방향
+	searchQuery   []rune // 입력 중인 쿼리
+	lastSearch    string // 확정된 마지막 검색어 (n/N 반복용)
+	lastSearchDir rune   // 확정 시점의 방향
 
 	// 상태 표시
 	lastKey    string
@@ -249,6 +259,11 @@ func (e *Editor) Feed(k Key) {
 	} else {
 		e.lastKey = k.S
 	}
+	if e.searching {
+		e.feedSearch(k)
+		e.updatePending()
+		return
+	}
 	switch e.mode {
 	case ModeInsert:
 		e.feedInsert(k)
@@ -260,7 +275,98 @@ func (e *Editor) Feed(k Key) {
 	e.updatePending()
 }
 
+// feedSearch 는 "/foo<cr>" 같은 검색 쿼리 입력을 처리하는 pseudo-mode.
+// Normal/Insert/Visual 상태 머신과 완전히 분리해 Feed() 최상단에서 가로챈다.
+func (e *Editor) feedSearch(k Key) {
+	switch k.S {
+	case "esc":
+		e.searching = false
+		e.searchQuery = nil
+		return
+	case "cr":
+		e.searching = false
+		e.lastSearch = string(e.searchQuery)
+		e.lastSearchDir = e.searchDir
+		e.searchQuery = nil
+		e.jumpToMatch(e.lastSearch, e.lastSearchDir, false)
+		return
+	case "bs":
+		if len(e.searchQuery) > 0 {
+			e.searchQuery = e.searchQuery[:len(e.searchQuery)-1]
+		}
+		return
+	}
+	if k.R != 0 {
+		e.searchQuery = append(e.searchQuery, k.R)
+	}
+}
+
+// jumpToMatch 는 query 를 dir 방향으로 커서 다음 위치부터 찾아 이동한다.
+// reverse=true 면 dir 을 한 번 뒤집는다(N 용).
+func (e *Editor) jumpToMatch(query string, dir rune, reverse bool) {
+	if query == "" {
+		return
+	}
+	effDir := dir
+	if reverse {
+		if dir == '/' {
+			effDir = '?'
+		} else {
+			effDir = '/'
+		}
+	}
+	if effDir == '/' {
+		e.searchForward(query)
+	} else {
+		e.searchBackward(query)
+	}
+}
+
+func (e *Editor) searchForward(query string) {
+	n := len(e.lines)
+	for i := 0; i <= n; i++ { // n+1 회: 현재 줄 포함 한 바퀴
+		r := (e.row + i) % n
+		line := string(e.lines[r])
+		start := 0
+		if i == 0 {
+			start = e.col + 1
+		}
+		if start > len(line) {
+			continue
+		}
+		if idx := strings.Index(line[start:], query); idx >= 0 {
+			e.row, e.col = r, start+idx
+			e.dcol = e.col
+			return
+		}
+	}
+}
+
+func (e *Editor) searchBackward(query string) {
+	n := len(e.lines)
+	for i := 0; i <= n; i++ {
+		r := ((e.row-i)%n + n) % n
+		line := string(e.lines[r])
+		end := len(line)
+		if i == 0 {
+			end = e.col
+		}
+		if end < 0 {
+			continue
+		}
+		if idx := strings.LastIndex(line[:end], query); idx >= 0 {
+			e.row, e.col = r, idx
+			e.dcol = e.col
+			return
+		}
+	}
+}
+
 func (e *Editor) updatePending() {
+	if e.searching {
+		e.pendingStr = string(e.searchDir) + string(e.searchQuery)
+		return
+	}
 	s := ""
 	if e.count > 0 {
 		s += itoa(e.count)
@@ -377,11 +483,27 @@ func (e *Editor) feedNormal(k Key) {
 		e.repeatFind(false)
 	case ',':
 		e.repeatFind(true)
+	case '/':
+		e.searching = true
+		e.searchDir = '/'
+		e.searchQuery = nil
+		return
+	case '?':
+		e.searching = true
+		e.searchDir = '?'
+		e.searchQuery = nil
+		return
+	case 'n':
+		e.jumpToMatch(e.lastSearch, e.lastSearchDir, false)
+	case 'N':
+		e.jumpToMatch(e.lastSearch, e.lastSearchDir, true)
 	case 'g':
 		e.await = "g"
 		return
 	case 'G':
-		e.gotoLine(e.takeCount())
+		n := e.count // takeCount() 이전에 원본 보존(0 = count 없음 = 마지막 줄)
+		e.count = 0
+		e.gotoLine(n)
 	case 'd', 'c', 'y':
 		e.op = r
 		return
@@ -471,7 +593,9 @@ func (e *Editor) handleAwait(k Key) {
 	switch e.await {
 	case "g":
 		if k.R == 'g' {
-			e.gotoLineTop(e.takeCount())
+			n := e.count // takeCount() 이전에 원본 보존(0 = count 없음 = 첫 줄)
+			e.count = 0
+			e.gotoLineTop(n)
 		}
 		e.clearPending()
 	case "r":
@@ -739,7 +863,7 @@ func (e *Editor) repeatFind(reverse bool) {
 }
 
 func (e *Editor) gotoLine(count int) {
-	if count <= 0 || e.count == 0 {
+	if count <= 0 {
 		e.row = len(e.lines) - 1
 	} else {
 		e.row = count - 1
@@ -750,7 +874,7 @@ func (e *Editor) gotoLine(count int) {
 }
 
 func (e *Editor) gotoLineTop(count int) {
-	if e.count > 0 {
+	if count > 0 {
 		e.row = count - 1
 	} else {
 		e.row = 0

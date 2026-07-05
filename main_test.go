@@ -98,3 +98,19 @@ func TestNavigateBlocksEditing(t *testing.T) {
 		t.Errorf("navigate 레벨에서 편집이 허용됨:\n  before %q\n  after  %q", before, after)
 	}
 }
+
+// TestNavigateAllowsSearch 는 navigate 레벨에서 검색(/ ? n N)이 막히지 않는지 확인한다.
+func TestNavigateAllowsSearch(t *testing.T) {
+	g := NewGame() // 1-1: "@........." 등 5줄
+	g.feed(RuneKey('/'))
+	if !g.ed.searching {
+		t.Fatal("navigate 레벨에서 '/' 가 막힘 — searching 진입 실패")
+	}
+	for _, r := range "K" {
+		g.feed(RuneKey(r))
+	}
+	g.feed(SpecialKey("cr"))
+	if g.ed.row != 2 || g.ed.col != 4 {
+		t.Fatalf("navigate 레벨에서 검색 이동 실패: row=%d col=%d want 2,4", g.ed.row, g.ed.col)
+	}
+}
