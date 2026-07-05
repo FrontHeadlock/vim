@@ -33,18 +33,27 @@ func main() {
 	}))
 
 	// 기존 HTML 버튼(RESET/RESTART/LEVELS)이 호출하는 전역 함수.
-	// Ebiten 쪽의 request* 폴링 플래그 대신 Game 을 직접 호출한다.
+	// Ebiten 쪽의 request* 폴링 플래그 대신 Game 을 직접 호출한다. vqInput 등과
+	// 마찬가지로 스냅샷을 돌려줘야 glue.js 가 클릭 직후 캔버스를 다시 그릴 수
+	// 있다 — nil 을 돌려주면 다음 키 입력 전까지 화면이 그대로 멈춰 있다.
+	//
+	// RESET 은 ":restart"/":e!" 와 의미가 같은 "지금 하던 것 다시" 버튼이라
+	// restartCurrent() 를 그대로 써야 한다 — 여기서 g.loadLevel(g.levelIdx) 를
+	// 직접 부르면 :drill 인식 분기가 빠져 드릴 중 RESET 을 누르면 커리큘럼으로
+	// 튕겨나가는 버그가 재발한다(:restart 만 고치고 이 버튼을 놓쳐서 실제로
+	// 겪은 회귀). RESTART 는 "게임 전체를 처음부터" 라는 더 큰 동작이라
+	// :drill 을 벗어나는 게 맞으므로 loadLevel(0) 그대로 둔다.
 	js.Global().Set("vimquestReset", js.FuncOf(func(js.Value, []js.Value) any {
-		vqGame.loadLevel(vqGame.levelIdx)
-		return nil
+		vqGame.restartCurrent()
+		return vqGame.snapshot()
 	}))
 	js.Global().Set("vimquestRestart", js.FuncOf(func(js.Value, []js.Value) any {
 		vqGame.loadLevel(0)
-		return nil
+		return vqGame.snapshot()
 	}))
 	js.Global().Set("vimquestLevelSelect", js.FuncOf(func(js.Value, []js.Value) any {
 		vqGame.enterLevelSelect()
-		return nil
+		return vqGame.snapshot()
 	}))
 
 	select {}

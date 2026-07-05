@@ -69,7 +69,3 @@ func jsSfx(name string) {
 	}
 	fn.Invoke(name)
 }
-
-// vimquestReset/Restart/LevelSelect 버튼 훅은 web_js.go 가 Game 을 직접 호출하는
-// 형태로 노출한다(Phase 4 L2 전에는 request* 폴링 플래그를 거쳤다 — 이제
-// 이벤트 구동이라 폴링이 필요 없다).

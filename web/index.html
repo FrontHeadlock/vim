@@ -265,9 +265,9 @@
       <div id="hint">Please wait.</div>
       <div id="status"></div>
       <div id="controls">
-        <button class="btn" onclick="window.vimquestReset && window.vimquestReset()">↺ RESET</button>
-        <button class="btn" onclick="window.vimquestRestart && window.vimquestRestart()">⏮ RESTART</button>
-        <button class="btn" onclick="window.vimquestLevelSelect && window.vimquestLevelSelect()">▤ LEVELS</button>
+        <button class="btn" onclick="vqCallAndDraw(window.vimquestReset)">↺ RESET</button>
+        <button class="btn" onclick="vqCallAndDraw(window.vimquestRestart)">⏮ RESTART</button>
+        <button class="btn" onclick="vqCallAndDraw(window.vimquestLevelSelect)">▤ LEVELS</button>
         <button class="btn" onclick="document.getElementById('intro').classList.remove('hidden')">📖 MANUAL</button>
         <button class="btn y" onclick="document.getElementById('cheatsheet').classList.add('show')">📜 CHEATSHEET</button>
         <button class="btn" id="mute-btn" onclick="toggleMute()">🔊 SOUND</button>

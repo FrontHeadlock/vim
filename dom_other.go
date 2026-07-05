@@ -11,5 +11,3 @@ func domSetHTML(id, html string) {}
 func domShow(id string) {}
 
 func jsSfx(name string) {}
-
-func registerJSHooks() {}

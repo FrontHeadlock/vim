@@ -42,6 +42,19 @@ function vqStartTick() {
   requestAnimationFrame(loop);
 }
 
+// vqCallAndDraw 는 RESET/RESTART/LEVELS 같은 버튼 훅을 감싼다. web_js.go 의
+// vimquestReset/Restart/LevelSelect 는 vqInput 과 동일하게 스냅샷을 돌려주므로,
+// 여기서 바로 그려야 클릭 직후 화면이 갱신된다(버튼이 keydown 이벤트를 안 거쳐
+// 그냥 두면 다음 키 입력 전까지 캔버스가 이전 화면에 멈춰 있는다).
+function vqCallAndDraw(fn) {
+  if (!fn) return;
+  const st = fn();
+  if (st && vqRenderer) {
+    vqRenderer.draw(st);
+    if (st.effectsAlive) vqStartTick();
+  }
+}
+
 function vqHandleKey(e) {
   if (e.isComposing || e.keyCode === 229) return; // 한글 IME 조합 중 — 배너가 안내
   let tok = null;

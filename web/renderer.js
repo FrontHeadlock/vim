@@ -177,7 +177,7 @@ class Renderer {
   drawAllClear(st) {
     this.clear();
     this.ch('ALL CLEAR!', 360, 250, COL.exit);
-    this.ch(`W1-W8 ${st.levelCount} levels complete.`, 300, 290, COL.text);
+    this.ch(`W1-W${st.worldCount} ${st.levelCount} levels complete.`, 300, 290, COL.text);
     this.ch('press the Restart button to replay', 250, 330, COL.muted);
   }
 }

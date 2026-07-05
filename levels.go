@@ -25,6 +25,10 @@ type Level struct {
 	Solution string   // verification (navigate/edit 공통) + par 산출 기준, 3★ 클리어 전까지 게임 내 비공개
 }
 
+// worldGroups(main.go/game.go)는 levels 를 ID 접두어가 바뀌는 지점 기준으로
+// 묶는다 — 그래서 같은 월드의 레벨은 반드시 이 배열 안에서 서로 인접해야
+// 한다(월드별로 나중에 추가한 레벨을 배열 맨 끝에 몰아 붙이면 그 월드가
+// 두 조각으로 쪼개져 레벨 선택 화면에 엉뚱한 열이 하나 더 생긴다).
 var levels = []Level{
 	// ───────────────────────── W1  The Moving Woods (basic motion) ─────────────────────────
 	{
@@ -373,6 +377,20 @@ var levels = []Level{
 		},
 		Solution: "/$<cr>?K<cr>/$<cr>",
 	},
+	{
+		ID:    "5-4",
+		Kind:  "navigate",
+		Title: "5-4  Deep Search",
+		Hint:  "Three keys are scattered through the swamp. Search once, then keep repeating to collect them all before heading to the exit.",
+		Cmds: []Cmd{
+			{"/{pattern}", "search forward"},
+			{"n", "repeat last search forward"},
+		},
+		Map: []string{
+			"@....K.........K.............K.......$",
+		},
+		Solution: "/K<cr>nn/$<cr>",
+	},
 
 	// ───────────────────────── W6  Precision Peaks (count, F/t, edit count) ─────────────────────────
 	{
@@ -427,6 +445,20 @@ var levels = []Level{
 		Target:   []string{"keep here"},
 		Solution: "wd2w",
 	},
+	{
+		ID:    "6-5",
+		Kind:  "navigate",
+		Title: "6-5  Boss: Count & Find",
+		Hint:  "Combine a counted word-jump with a direct find to cross the canyon in one clean run.",
+		Cmds: []Cmd{
+			{"{N}w", "jump N words forward"},
+			{"f{char}", "leap to that char"},
+		},
+		Map: []string{
+			"@one two three K x.y.z.w.$",
+		},
+		Solution: "4wf$",
+	},
 
 	// ───────────────────────── W7  Visual Valley (visual mode + text objects) ─────────────────────────
 	{
@@ -468,6 +500,21 @@ var levels = []Level{
 		Map:      []string{"fix THIS please"},
 		Target:   []string{"fix OK please"},
 		Solution: "wviwcOK<esc>",
+	},
+	{
+		ID:    "7-4",
+		Kind:  "edit",
+		Title: "7-4  Visual + Text Object Combo",
+		Hint:  "Clear the first intruder with a Visual text-object delete, then change the second one with a text-object change.",
+		Cmds: []Cmd{
+			{"v", "enter Visual"},
+			{"aw", "'a word' text object (extends selection)"},
+			{"d", "delete the selection"},
+			{"ciw", "change inner word"},
+		},
+		Map:      []string{"cut BAD here fix OLD there"},
+		Target:   []string{"cut here fix NEW there"},
+		Solution: "wvawdwwciwNEW<esc>",
 	},
 
 	// ───────────────────────── W8  Yank & Undo Ruins (xp, ddp, p/P, u/Ctrl-r) ─────────────────────────
@@ -522,51 +569,6 @@ var levels = []Level{
 		Map:      []string{"keep", "BAD1", "BAD2"},
 		Target:   []string{"keep", "BAD2"},
 		Solution: "jddddu",
-	},
-
-	// ───────────────────────── Phase 4 L3 보강 — 종합 레벨 ─────────────────────────
-	{
-		ID:    "5-4",
-		Kind:  "navigate",
-		Title: "5-4  Deep Search",
-		Hint:  "Three keys are scattered through the swamp. Search once, then keep repeating to collect them all before heading to the exit.",
-		Cmds: []Cmd{
-			{"/{pattern}", "search forward"},
-			{"n", "repeat last search forward"},
-		},
-		Map: []string{
-			"@....K.........K.............K.......$",
-		},
-		Solution: "/K<cr>nn/$<cr>",
-	},
-	{
-		ID:    "6-5",
-		Kind:  "navigate",
-		Title: "6-5  Boss: Count & Find",
-		Hint:  "Combine a counted word-jump with a direct find to cross the canyon in one clean run.",
-		Cmds: []Cmd{
-			{"{N}w", "jump N words forward"},
-			{"f{char}", "leap to that char"},
-		},
-		Map: []string{
-			"@one two three K x.y.z.w.$",
-		},
-		Solution: "4wf$",
-	},
-	{
-		ID:    "7-4",
-		Kind:  "edit",
-		Title: "7-4  Visual + Text Object Combo",
-		Hint:  "Clear the first intruder with a Visual text-object delete, then change the second one with a text-object change.",
-		Cmds: []Cmd{
-			{"v", "enter Visual"},
-			{"aw", "'a word' text object (extends selection)"},
-			{"d", "delete the selection"},
-			{"ciw", "change inner word"},
-		},
-		Map:      []string{"cut BAD here fix OLD there"},
-		Target:   []string{"cut here fix NEW there"},
-		Solution: "wvawdwwciwNEW<esc>",
 	},
 	{
 		ID:    "8-5",

@@ -80,3 +80,55 @@ func decodeProgress(s string) map[string]LevelProgress {
 	}
 	return out
 }
+
+// decodeProgressV1JSON 은 옛 encoding/json 포맷
+// (`{"1-1":{"Unlocked":true,"BestStrokes":13,"Stars":3}, ...}`)을 파싱하는
+// Go 쪽 폴백이다. v1→v2 마이그레이션은 원래 glue.js 가 wasm 로드 전에
+// JSON.parse 로 처리하지만, 그게 어떤 이유로든(스크립트 순서 어긋남,
+// localStorage 예외 등) 실행되지 못했을 경우에도 기존 플레이어 진행이
+// 사라지지 않도록 Go 쪽에서도 같은 v1 데이터를 읽을 수 있어야 한다.
+// encoding/json 은 TinyGo 에서 무겁다는 게 이 파일의 전제이므로, 일반
+// JSON 파서가 아니라 이 고정된 한 가지 모양만 문자열로 손수 스캔한다.
+func decodeProgressV1JSON(s string) map[string]LevelProgress {
+	out := map[string]LevelProgress{}
+	s = strings.TrimSpace(s)
+	s = strings.TrimPrefix(s, "{")
+	s = strings.TrimSuffix(s, "}")
+	if s == "" {
+		return out
+	}
+	for _, entry := range strings.Split(s, "},") {
+		entry = strings.TrimSuffix(entry, "}")
+		colon := strings.IndexByte(entry, ':')
+		if colon < 0 {
+			continue
+		}
+		id := strings.Trim(entry[:colon], `"`)
+		if id == "" {
+			continue
+		}
+		body := strings.TrimPrefix(entry[colon+1:], "{")
+		out[id] = LevelProgress{
+			Unlocked:    strings.Contains(body, `"Unlocked":true`),
+			BestStrokes: extractJSONInt(body, "BestStrokes"),
+			Stars:       extractJSONInt(body, "Stars"),
+		}
+	}
+	return out
+}
+
+// extractJSONInt 는 `"key":123` 형태에서 123 을 뽑는다(부호 있는 정수만).
+func extractJSONInt(s, key string) int {
+	marker := `"` + key + `":`
+	idx := strings.Index(s, marker)
+	if idx < 0 {
+		return 0
+	}
+	rest := s[idx+len(marker):]
+	end := 0
+	for end < len(rest) && (rest[end] == '-' || (rest[end] >= '0' && rest[end] <= '9')) {
+		end++
+	}
+	n, _ := strconv.Atoi(rest[:end])
+	return n
+}

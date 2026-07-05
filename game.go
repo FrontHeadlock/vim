@@ -14,15 +14,6 @@ import (
 	"time"
 )
 
-// 리셋/레벨선택 요청은 JS 버튼(또는 데스크톱 no-op)에서 설정한다.
-var resetRequested bool
-var restartRequested bool
-var levelSelectRequested bool
-
-func requestReset()       { resetRequested = true }
-func requestRestart()     { restartRequested = true }
-func requestLevelSelect() { levelSelectRequested = true }
-
 // gameState 는 게임 전체의 화면 상태를 나타낸다.
 type gameState int
 
@@ -264,6 +255,20 @@ func (g *Game) feedEx(k Key) {
 	}
 }
 
+// restartCurrent 는 "지금 하던 것을 strokes=0 으로 다시"에 해당하는 단일
+// 진입점이다 — :restart/:e! ex-command 와 RESET 버튼(웹 web_js.go 의
+// vimquestReset)이 반드시 이 함수 하나를 거쳐야 한다. 예전에 이 로직을
+// runExCommand 안에만 넣었더니, web_js.go 의 vimquestReset 이 별도로
+// g.loadLevel(g.levelIdx) 를 직접 불러 :drill 인식 분기가 빠진 채로
+// 똑같은 버그(드릴 중 리셋하면 커리큘럼으로 튕겨나감)를 반복한 적이 있다.
+func (g *Game) restartCurrent() {
+	if g.state == stateDrill {
+		g.loadLevelData(g.lv) // 같은 드릴 문제를 strokes=0 으로 재시작(다음 문제로 넘기지 않는다)
+	} else {
+		g.loadLevel(g.levelIdx)
+	}
+}
+
 // runExCommand 는 확정된 ex-command 문자열을 해석해 실행한다.
 // 인식하지 못한 명령은 조용히 무시한다(터미널처럼 무반응 — 에러 팝업 없음).
 func (g *Game) runExCommand(cmd string) {
@@ -271,7 +276,7 @@ func (g *Game) runExCommand(cmd string) {
 	case cmd == "q" || cmd == "levels":
 		g.enterLevelSelect()
 	case cmd == "restart" || cmd == "e!":
-		g.loadLevel(g.levelIdx)
+		g.restartCurrent()
 	case cmd == "help":
 		domShow("intro")
 	case cmd == "drill":
@@ -415,9 +420,19 @@ func (g *Game) enterLevelSelect() {
 	g.syncDOM()
 }
 
+// worldGroupsCache 는 worldGroups() 의 계산 결과를 담아둔다. levels 는 런타임에
+// 절대 바뀌지 않는 정적 슬라이스라 한 번만 계산하면 된다 — 캐싱이 없으면
+// drawAllClear 처럼 매 프레임(최대 60Hz) 불리는 경로에서 매번 재스캔+재할당된다.
+// 단일 고루틴(Ebiten Update/Draw, 또는 wasm/JS 단일 스레드 이벤트 루프)에서만
+// 호출되므로 락 없이 캐싱해도 안전하다.
+var worldGroupsCache [][]int
+
 // worldGroups 는 levels 를 Level.ID 접두어(월드 번호) 기준으로 묶어
 // [월드][월드 내 레벨] = levels 인덱스 형태로 반환한다.
 func worldGroups() [][]int {
+	if worldGroupsCache != nil {
+		return worldGroupsCache
+	}
 	var groups [][]int
 	var cur []int
 	curWorld := ""
@@ -438,6 +453,7 @@ func worldGroups() [][]int {
 	if len(cur) > 0 {
 		groups = append(groups, cur)
 	}
+	worldGroupsCache = groups
 	return groups
 }
 
@@ -509,11 +525,24 @@ func (g *Game) enterDrill() {
 
 // advanceDrill 은 :drill 문제를 클리어했을 때 통계를 누적하고 즉시 다음
 // 문제를 생성한다 — 클리어 화면을 생략해 템포를 유지한다(반복 훈련이 목적).
+// drillMaxRounds 는 한 :drill 세션에서 생성할 문제 수의 상한. 웹 빌드는
+// 크기를 줄이려고 GC 를 꺼놨으므로(-gc=leaking, build.sh) 문제를 생성할
+// 때마다 나오는 자잘한 쓰레기(격자·Editor·해 문자열)가 세션 내내 전혀
+// 회수되지 않는다 — 정확히 "반복 연습"이라는 이 기능의 용도에서 무한정
+// 늘어날 수 있다는 뜻이라, 라운드 수에 상한을 둬 최악의 경우 메모리 증가를
+// 유한하게 묶는다. 이 값(대략 문제당 수 KB 기준 총 수 MB)은 실제 연습
+// 세션에선 거의 도달하지 않을 만큼 넉넉하다.
+const drillMaxRounds = 1000
+
 func (g *Game) advanceDrill() {
 	g.drillStreak++
 	g.drillTotalKeys += g.strokes
 	g.drillTotalPar += g.currentPar()
 	jsSfx("clear")
+	if g.drillStreak >= drillMaxRounds {
+		g.enterLevelSelect()
+		return
+	}
 	g.loadLevelData(generateDrill(g.drillRng))
 }
 
@@ -598,28 +627,11 @@ func (g *Game) cellAt(r, c int) rune {
 	return ls[r][c]
 }
 
-func itoa(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	neg := n < 0
-	if neg {
-		n = -n
-	}
-	var digits []byte
-	for n > 0 {
-		digits = append(digits, byte('0'+n%10))
-		n /= 10
-	}
-	var b strings.Builder
-	if neg {
-		b.WriteByte('-')
-	}
-	for i := len(digits) - 1; i >= 0; i-- {
-		b.WriteByte(digits[i])
-	}
-	return b.String()
-}
+// itoa 는 strconv.Itoa 의 얇은 별칭. game.go 전역에서 이미 이 이름으로 쓰이던
+// 관용구를 유지하되(호출부 수십 곳을 다 고치지 않기 위함), stdlib 와 별개로
+// 손으로 재구현해 유지하지는 않는다 — strconv 는 runExCommand 의 Atoi 때문에
+// 이미 이 파일에 들어와 있어 추가 바이너리 비용이 없다.
+func itoa(n int) string { return strconv.Itoa(n) }
 
 // ───────────────────────── DOM(한국어 UI) ─────────────────────────
 
@@ -645,7 +657,7 @@ func (g *Game) syncDOM() {
 	switch g.state {
 	case stateAllClear:
 		domSet("level-title", "🎉 ALL CLEAR!")
-		domSet("hint", "Congratulations! You cleared all 19 levels across W1-W4. Now go practice in real Vim!")
+		domSet("hint", "Congratulations! You cleared all "+itoa(len(levels))+" levels across W1-W"+itoa(len(worldGroups()))+". Now go practice in real Vim!")
 		domSet("status", "")
 		domSetHTML("solve-cmds", "")
 		return
@@ -709,6 +721,7 @@ func (g *Game) snapshot() map[string]any {
 	switch g.state {
 	case stateAllClear:
 		base["state"] = "allclear"
+		base["worldCount"] = len(worldGroups())
 		return base
 
 	case stateLevelClear:

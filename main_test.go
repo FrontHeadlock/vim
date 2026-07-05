@@ -183,6 +183,52 @@ func TestExCommandRestart(t *testing.T) {
 	}
 }
 
+// TestExCommandRestartInDrillStaysInDrill 은 :drill 중에 :restart 를 치면
+// (버그: 마지막 커리큘럼 레벨로 튕겨나가던 것과 달리) 같은 드릴 문제가
+// strokes=0 으로 재시작되고 stateDrill 이 유지되는지 확인한다.
+func TestExCommandRestartInDrillStaysInDrill(t *testing.T) {
+	g := NewGame()
+	g.loadLevel(2) // levelIdx=2 로 이동 — :restart 가 여기로 새는지 구분하기 위함
+	g.enterDrill()
+	lv := g.lv // 드릴이 생성한 문제(맵/해)를 기억해둔다
+	g.feed(RuneKey('l'))
+	before := g.strokes
+	g.feed(RuneKey(':'))
+	feedStr(g, "restart")
+	g.feed(SpecialKey("cr"))
+	if g.state != stateDrill {
+		t.Fatalf(":drill 중 :restart 가 드릴을 벗어남: state=%v want stateDrill", g.state)
+	}
+	if g.levelIdx != 2 {
+		t.Fatalf(":drill 중 :restart 가 커리큘럼 레벨로 샘: levelIdx=%d", g.levelIdx)
+	}
+	if g.strokes != 0 {
+		t.Fatalf(":restart 후 strokes 가 리셋되지 않음: before=%d after=%d", before, g.strokes)
+	}
+	if g.lv.Solution != lv.Solution {
+		t.Fatalf(":restart 가 같은 드릴 문제를 유지하지 않음: got %q want %q", g.lv.Solution, lv.Solution)
+	}
+}
+
+// TestRestartCurrentIsDrillAware 는 restartCurrent() 자체를 직접 호출해도
+// (즉 :restart ex-command 경로를 거치지 않고, web_js.go 의 vimquestReset 이
+// 부르는 것과 동일하게) 드릴 인식이 유지되는지 확인한다. 예전엔 이 로직이
+// runExCommand 안에만 있어서 vimquestReset 이 별도로 g.loadLevel 을 직접
+// 불러 같은 버그를 반복했다 — 이제 두 호출부 모두 restartCurrent() 하나만
+// 거치므로, 이 테스트가 그 유일한 구현을 직접 지킨다.
+func TestRestartCurrentIsDrillAware(t *testing.T) {
+	g := NewGame()
+	g.loadLevel(2)
+	g.enterDrill()
+	lv := g.lv
+	g.feed(RuneKey('l'))
+	g.restartCurrent()
+	if g.state != stateDrill || g.levelIdx != 2 || g.strokes != 0 || g.lv.Solution != lv.Solution {
+		t.Fatalf("restartCurrent() 가 드릴을 벗어남: state=%v levelIdx=%d strokes=%d solution=%q want stateDrill,2,0,%q",
+			g.state, g.levelIdx, g.strokes, g.lv.Solution, lv.Solution)
+	}
+}
+
 // TestExCommandGotoLine 은 :{N} 이 실제로 N번째 줄로 이동하는지 확인한다
 // (Phase3 §0에서 고친 gotoLine count 버그에 의존).
 func TestExCommandGotoLine(t *testing.T) {
@@ -304,6 +350,19 @@ func TestInputNoStrokesOutsidePlaying(t *testing.T) {
 	g.Input(RuneKey('x')) // 클리어 화면에서 'r'/'cr' 도 아닌 키
 	if g.strokes != before {
 		t.Fatalf("비-플레이 상태 입력이 strokes 를 증가시킴: before=%d after=%d", before, g.strokes)
+	}
+}
+
+// TestDrillCapsSessionLength 는 drillMaxRounds 에 도달하면 :drill 이 새 문제를
+// 계속 생성하는 대신 레벨 선택으로 빠지는지 확인한다 — -gc=leaking 웹 빌드에서
+// 문제 생성마다 나오는 쓰레기가 세션 내내 무한정 쌓이는 걸 막는 상한.
+func TestDrillCapsSessionLength(t *testing.T) {
+	g := NewGame()
+	g.enterDrill()
+	g.drillStreak = drillMaxRounds - 1
+	g.advanceDrill()
+	if g.state != stateLevelSelect {
+		t.Fatalf("드릴 상한(%d) 도달 후 레벨 선택으로 빠지지 않음: state=%v", drillMaxRounds, g.state)
 	}
 }
 

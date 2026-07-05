@@ -48,22 +48,6 @@ var inbuf []rune
 // ───────────────────────── 입력(폴링 → Key 변환) ─────────────────────────
 
 func (g *Game) Update() error {
-	if restartRequested {
-		restartRequested = false
-		g.loadLevel(0)
-		return nil
-	}
-	if resetRequested {
-		resetRequested = false
-		g.loadLevel(g.levelIdx)
-		return nil
-	}
-	if levelSelectRequested {
-		levelSelectRequested = false
-		g.enterLevelSelect()
-		return nil
-	}
-
 	switch g.state {
 	case stateLevelClear:
 		if inpututil.IsKeyJustPressed(ebiten.KeyEnter) || inpututil.IsKeyJustPressed(ebiten.KeyNumpadEnter) {
@@ -140,7 +124,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 func (g *Game) drawAllClear(screen *ebiten.Image) {
 	drawChar(screen, "ALL CLEAR!", 360, 250, colExit)
-	drawChar(screen, "W1-W4 19 levels complete.", 300, 290, colText)
+	drawChar(screen, "W1-W"+itoa(len(worldGroups()))+" "+itoa(len(levels))+" levels complete.", 300, 290, colText)
 	drawChar(screen, "press the Restart button to replay", 250, 330, colMuted)
 }
 
@@ -378,7 +362,6 @@ func (g *Game) Layout(int, int) (int, int) { return screenW, screenH }
 func main() {
 	ebiten.SetWindowSize(screenW, screenH)
 	ebiten.SetWindowTitle(gameName)
-	registerJSHooks()
 	if err := ebiten.RunGame(NewGame()); err != nil {
 		panic(err)
 	}
