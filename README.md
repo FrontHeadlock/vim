@@ -17,7 +17,7 @@ Learn Vim by playing a text adventure game.
 make              # Build both desktop & web
 make build-web    # Web (TinyGo WASM)
 make build-desktop # Desktop (Ebiten)
-make test         # Run tests (48 tests)
+make test         # Run tests
 ```
 
 **Desktop:**
@@ -36,7 +36,7 @@ python3 -m http.server 8765 --directory web
 - **cmd/** — Platform-specific entry points (desktop, web)
 - **internal/engine/** — Pure Vim editor engine (no dependencies)
 - **internal/game/** — Game rules & state machine
-- **internal/store/** — Progress save (gob + base32 codec)
+- **internal/store/** — Progress save (hand-written text codec, no encoding/json — see store.go)
 - **internal/platform/** — DOM/SFX bridge (web/no-op)
 - **web/src/** — Static assets (HTML, JS, canvas renderer)
 

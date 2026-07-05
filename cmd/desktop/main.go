@@ -24,60 +24,36 @@ type app struct {
 	inbuf []rune // 입력 폴링 스크래치 버퍼(프레임마다 재사용)
 }
 
+// Update 는 상태를 보지 않고 키를 전부 Game.Input 으로 나른다. 어떤 키가
+// 어느 상태에서 유효한지는 Game.Input 이 단독으로 결정한다(F2) — 예전엔
+// 여기서도 상태별 라우팅 표를 별도로 들고 있어서, 새 상태(StateAllClear)에
+// 대응하는 케이스를 빠뜨리는 사고(소프트락)가 났다. 라우팅 표를 하나로
+// 줄이면 그 사고 자체가 재발할 수 없다.
 func (a *app) Update() error {
 	g := a.g
-	switch g.State() {
-	case game.StateLevelClear:
-		if isEnterPressed() {
-			g.Input(engine.SpecialKey("cr"))
-		}
-		if inpututil.IsKeyJustPressed(ebiten.KeyR) {
-			g.Input(engine.RuneKey('r'))
-		}
-	case game.StateLevelSelect:
-		if inpututil.IsKeyJustPressed(ebiten.KeyH) {
-			g.Input(engine.RuneKey('h'))
-		}
-		if inpututil.IsKeyJustPressed(ebiten.KeyL) {
-			g.Input(engine.RuneKey('l'))
-		}
-		if inpututil.IsKeyJustPressed(ebiten.KeyJ) {
-			g.Input(engine.RuneKey('j'))
-		}
-		if inpututil.IsKeyJustPressed(ebiten.KeyK) {
-			g.Input(engine.RuneKey('k'))
-		}
-		if isEnterPressed() {
-			g.Input(engine.SpecialKey("cr"))
-		}
-		if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
-			g.Input(engine.SpecialKey("esc"))
-		}
-	case game.StateAllClear:
-		// 정적 화면 — 입력 없음
-	default: // StatePlaying / StateDrill
-		if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
-			g.Input(engine.SpecialKey("esc"))
-		}
-		if isEnterPressed() {
-			g.Input(engine.SpecialKey("cr"))
-		}
-		if inpututil.IsKeyJustPressed(ebiten.KeyBackspace) {
-			g.Input(engine.SpecialKey("bs"))
-		}
-		ctrl := ebiten.IsKeyPressed(ebiten.KeyControl)
-		if ctrl && inpututil.IsKeyJustPressed(ebiten.KeyR) {
-			g.Input(engine.SpecialKey("c-r"))
-		}
 
-		// 타이핑된 문자
-		a.inbuf = ebiten.AppendInputChars(a.inbuf[:0])
-		for _, r := range a.inbuf {
-			if ctrl {
-				continue // Ctrl 조합은 문자로 처리하지 않음
-			}
-			g.Input(engine.RuneKey(r))
+	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
+		g.Input(engine.SpecialKey("esc"))
+	}
+	if isEnterPressed() {
+		g.Input(engine.SpecialKey("cr"))
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyBackspace) {
+		g.Input(engine.SpecialKey("bs"))
+	}
+	ctrl := ebiten.IsKeyPressed(ebiten.KeyControl)
+	if ctrl && inpututil.IsKeyJustPressed(ebiten.KeyR) {
+		g.Input(engine.SpecialKey("c-r"))
+	}
+
+	// 타이핑된 문자 — StateLevelClear 의 'r'(재시도), StateLevelSelect 의
+	// hjkl 이동을 포함해 전부 여기서 나른다(상태별 특별 취급 없음).
+	a.inbuf = ebiten.AppendInputChars(a.inbuf[:0])
+	for _, r := range a.inbuf {
+		if ctrl {
+			continue // Ctrl 조합은 문자로 처리하지 않음
 		}
+		g.Input(engine.RuneKey(r))
 	}
 
 	g.Tick()

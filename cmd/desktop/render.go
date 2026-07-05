@@ -24,6 +24,21 @@ const (
 
 var face = text.NewGoXFace(basicfont.Face7x13)
 
+// whitePixel 은 drawRect 가 재사용하는 1×1 흰색 이미지(D1). 예전엔 사각형
+// 하나(커서·비주얼 하이라이트·매치 배경 등, 프레임당 수십 회)를 그릴 때마다
+// ebiten.NewImage 로 새 GPU 텍스처를 만들었다 — 이 이미지 하나를 GeoM.Scale +
+// ColorScale 로 원하는 크기·색으로 찍어내면 텍스처 할당이 0이 된다.
+var whitePixel = newWhitePixel()
+
+func newWhitePixel() *ebiten.Image {
+	img := ebiten.NewImage(1, 1)
+	img.Fill(color.White)
+	return img
+}
+
+// D3: 이 팔레트의 canonical 출처는 web/src/renderer.js 의 COL(+ index.html 의
+// CSS 변수, 3벌째) — 값을 바꿀 땐 세 곳 모두 손으로 맞춰야 한다(코드 생성은
+// 과함, refactor_code.md D3).
 var (
 	colBG     = color.RGBA{0x1e, 0x20, 0x2a, 0xff}
 	colFloor  = color.RGBA{0x4a, 0x4f, 0x5e, 0xff}
@@ -56,7 +71,7 @@ func (a *app) Draw(screen *ebiten.Image) {
 func (a *app) drawAllClear(screen *ebiten.Image) {
 	drawChar(screen, "ALL CLEAR!", 360, 250, colExit)
 	drawChar(screen, "W1-W"+strconv.Itoa(len(game.WorldGroups()))+" "+strconv.Itoa(game.LevelCount())+" levels complete.", 300, 290, colText)
-	drawChar(screen, "press the Restart button to replay", 250, 330, colMuted)
+	drawChar(screen, "[Enter] level select", 340, 330, colMuted)
 }
 
 func (a *app) drawPlaying(screen *ebiten.Image) {
@@ -67,7 +82,8 @@ func (a *app) drawPlaying(screen *ebiten.Image) {
 	// 상단 HUD
 	hud := "level " + strconv.Itoa(g.LevelIndex()+1) + "/" + strconv.Itoa(game.LevelCount())
 	if g.State() == game.StateDrill {
-		hud = "DRILL   streak " + strconv.Itoa(g.DrillStreak())
+		// B2: lv.Title 이 생성기별 유형을 이미 담고 있다("DRILL"/"DRILL [w]"/...).
+		hud = lv.Title + "   streak " + strconv.Itoa(g.DrillStreak())
 	}
 	if lv.Kind == "navigate" {
 		hud += "   keys " + strconv.Itoa(g.KeysNeed()-g.KeysLeft()) + "/" + strconv.Itoa(g.KeysNeed()) +
@@ -127,15 +143,18 @@ func (a *app) drawLevelClear(screen *ebiten.Image) {
 	drawChar(screen, "par       : "+strconv.Itoa(cs.Par)+"   "+starStr, 340, 290, colText)
 
 	bestLine := "best      : " + strconv.Itoa(cs.Best)
-	if cs.Best == 0 || cs.Strokes < cs.Best {
+	if cs.IsNew {
 		bestLine += " -> " + strconv.Itoa(cs.Strokes) + " (NEW!)"
 	}
 	drawChar(screen, bestLine, 340, 320, colMuted)
 
+	// B4: 내가 실제로 입력한 키 시퀀스 — 별점과 무관하게 항상 표시(제작자
+	// solution 과 달리 스포일러가 아니다).
+	drawChar(screen, "yours     : "+cs.Yours, 340, 350, colText)
 	if cs.Stars == 3 {
-		drawChar(screen, "solution  : "+g.Level().Solution, 340, 350, colKey)
+		drawChar(screen, "solution  : "+g.Level().Solution, 340, 380, colKey)
 	}
-	drawChar(screen, "[Enter] next   [r] retry", 340, 390, colMuted)
+	drawChar(screen, "[Enter] next   [r] retry", 340, 420, colMuted)
 }
 
 // drawLevelSelect 는 월드×레벨 그리드를 렌더한다. h/l = 월드 이동, j/k = 레벨 이동.
@@ -173,10 +192,16 @@ func (a *app) drawBuffer(screen *ebiten.Image, lines []string, ox, oy int, targe
 	g := a.g
 	ed := g.Editor()
 	insert := ed.Mode() == engine.ModeInsert
-	vr1, vc1, vr2, vc2, vline, hasVis := ed.VisualSpan()
+
+	visByRow := make(map[int]game.RowSpan)
+	for _, vr := range g.VisualRows() {
+		visByRow[vr.Row] = vr
+	}
+	matched := g.MatchedRows()
+
 	for r, line := range lines {
 		// edit: 목표 줄과 일치하면 배경을 초록빛으로
-		if target != nil && r < len(target) && line == target[r] {
+		if target != nil && r < len(matched) && matched[r] {
 			w := len(line)
 			if w < 1 {
 				w = 1
@@ -189,7 +214,7 @@ func (a *app) drawBuffer(screen *ebiten.Image, lines []string, ox, oy int, targe
 			py := float64(oy + r*lineH)
 
 			// 비주얼 선택 하이라이트
-			if hasVis && inVisual(r, c, vr1, vc1, vr2, vc2, vline) {
+			if vr, hasVis := visByRow[r]; hasVis && c >= vr.C1 && c <= vr.C2 {
 				drawRect(screen, px-1, py-2, charW, lineH-4, colVisual)
 			}
 			// 커서
@@ -244,25 +269,6 @@ func (a *app) drawTarget(screen *ebiten.Image, lines []string, ox, oy int) {
 	}
 }
 
-func inVisual(r, c, r1, c1, r2, c2 int, lineMode bool) bool {
-	if r < r1 || r > r2 {
-		return false
-	}
-	if lineMode {
-		return true
-	}
-	if r1 == r2 {
-		return c >= c1 && c <= c2
-	}
-	if r == r1 {
-		return c >= c1
-	}
-	if r == r2 {
-		return c <= c2
-	}
-	return true
-}
-
 func (a *app) cellColor(ch rune, r, c int) color.Color {
 	if a.g.Level().Kind == "navigate" {
 		switch ch {
@@ -291,9 +297,9 @@ func drawChar(screen *ebiten.Image, s string, x, y float64, col color.Color) {
 }
 
 func drawRect(screen *ebiten.Image, x, y, w, h float64, col color.Color) {
-	img := ebiten.NewImage(int(w), int(h))
-	img.Fill(col)
 	op := &ebiten.DrawImageOptions{}
+	op.GeoM.Scale(w, h)
 	op.GeoM.Translate(x, y)
-	screen.DrawImage(img, op)
+	op.ColorScale.ScaleWithColor(col)
+	screen.DrawImage(whitePixel, op)
 }

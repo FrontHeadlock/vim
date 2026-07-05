@@ -45,7 +45,7 @@ cmd/* → game → {engine, store, platform}
 
 - **keys.go** — 키 토크나이저 (hjkl, f/t, 명령 파싱)
 
-- **editor_test.go** — 48개 테스트
+- **editor_test.go** — 예제 기반 테스트 (`go test ./...` 로 현재 개수 확인)
 
 **공개 API:**
 ```go
@@ -139,11 +139,14 @@ ProgressFor(id string) store.LevelProgress
 **파일:**
 - **store.go** — 저장소 인터페이스 & 코덱
   - LevelProgress (BestStrokes, Stars, Unlocked)
-  - gob + base32 인코딩
+  - 수제 텍스트 코덱(`"1-1:1,13,3;3-2:1,0,2"`) — encoding/json 은 TinyGo
+    reflection 비용이 커서(89KB→458KB 실측) 배제
 
 - **store_js.go** — 웹 구현 (localStorage)
-- **store_other.go** — 데스크톱 구현 (홈 디렉토리)
-- **store_test.go** — 코덱 테스트
+- **store_other.go** — 데스크톱 구현 (`os.UserConfigDir()/vimquest/progress.txt`).
+  `go test` 하에서는 `testing.Testing()` 으로 감지해 인메모리로 자동 대체 —
+  헤드리스 테스트가 실제 저장 파일 상태에 의존하지 않는다.
+- **store_test.go**, **store_other_test.go** — 코덱·파일 저장 왕복 테스트
 
 **공개 API:**
 ```go
@@ -244,11 +247,11 @@ Go의 패키지 구조로 비순환 의존성(DAG)이 자동 검증된다.
 - desktop: view.go 접근자 (읽기 + 로컬 렌더링)
 - web: snapshot.go (게임 → JSON → JS)
 
-### 3. TinyGo 크기 예산 (105KB gzip)
+### 3. TinyGo 크기 예산 (125KB gzip)
 
 **제약:** WebAssembly 페이로드 최소화
 - 패키지당 DCE/메타데이터 오버헤드 ~4KB
-- 단순 패키지 분할 시 124KB → 105KB로 상향
+- 단순 패키지 분할 시 125KB로 상향(vqInput/vqTick 추가분 포함, scripts/build.sh 실측)
 
 **대책:**
 - GC 비활성화 (-gc=leaking)

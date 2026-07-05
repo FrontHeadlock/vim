@@ -202,6 +202,7 @@
             <tr><td>i  a  A  o</td><td>start typing: before / after / line-end / new line below — then <kbd>Esc</kbd></td></tr>
             <tr><td>u  ·  Ctrl-r</td><td>undo / redo</td></tr>
             <tr><td>.</td><td>repeat your last change (Vim's magic!)</td></tr>
+            <tr><td>:help  :drill  :q</td><td>ex-commands — these never count toward your keystrokes/par</td></tr>
           </table>
         </div>
 
@@ -237,6 +238,7 @@
             <tr><td>i  a  A  o</td><td>입력 시작: 앞 / 뒤 / 줄끝 / 아래 새 줄 — 입력 후 <kbd>Esc</kbd></td></tr>
             <tr><td>u  ·  Ctrl-r</td><td>되돌리기 / 다시 실행</td></tr>
             <tr><td>.</td><td>방금 한 변경을 그대로 반복 (Vim 의 마법!)</td></tr>
+            <tr><td>:help  :drill  :q</td><td>ex-command — 타수/par 에는 절대 반영되지 않아요</td></tr>
           </table>
         </div>
 
@@ -268,6 +270,7 @@
         <button class="btn" onclick="vqCallAndDraw(window.vimquestReset)">↺ RESET</button>
         <button class="btn" onclick="vqCallAndDraw(window.vimquestRestart)">⏮ RESTART</button>
         <button class="btn" onclick="vqCallAndDraw(window.vimquestLevelSelect)">▤ LEVELS</button>
+        <button class="btn" onclick="vqCopySolution()">📋 COPY</button>
         <button class="btn" onclick="document.getElementById('intro').classList.remove('hidden')">📖 MANUAL</button>
         <button class="btn y" onclick="document.getElementById('cheatsheet').classList.add('show')">📜 CHEATSHEET</button>
         <button class="btn" id="mute-btn" onclick="toggleMute()">🔊 SOUND</button>

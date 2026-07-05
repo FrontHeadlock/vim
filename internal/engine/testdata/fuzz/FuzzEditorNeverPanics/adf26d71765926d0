@@ -1,0 +1,2 @@
+go test fuzz v1
+string("VG000000010000000000Sܴq0000ī\xd8\xfd\x83\xb8^\xd5\x130000000000")

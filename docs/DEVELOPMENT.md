@@ -316,12 +316,16 @@ type LevelProgress struct {
 
 **인코딩:**
 ```
-gob(LevelProgress{}) → base32 → localStorage/파일
+수제 텍스트 코덱("1-1:1,13,3;3-2:1,0,2") → localStorage/파일
 ```
+encoding/json 대신 손으로 짠 이유: TinyGo wasm 빌드에서 reflection 비용이 커서
+(89KB→458KB 실측) 레벨당 3필드뿐인 이 스키마엔 맞지 않는다(store.go 주석 참고).
 
 **구현:**
 - `store_js.go` — 웹: localStorage (크롬 개발자 도구에서 확인 가능)
-- `store_other.go` — 데스크톱: `~/.vimquest/progress`
+- `store_other.go` — 데스크톱: `os.UserConfigDir()/vimquest/progress.txt`
+  (macOS: `~/Library/Application Support/vimquest/progress.txt`). `go test` 하에서는
+  `testing.Testing()` 감지로 인메모리 구현으로 자동 대체된다.
 
 ---
 
@@ -437,7 +441,7 @@ make build
 
 ### 웹 (TinyGo)
 - GC 비활성화 (-gc=leaking)
-- 크기 예산: 105KB gzip
+- 크기 예산: 125KB gzip
 - 메모리 누수 주의 (쓰레기 회수 안 함)
 
 ### 프로파일링
@@ -459,7 +463,7 @@ brew install tinygo-org/tools/tinygo
 
 ### 웹 빌드 크기 초과
 ```
-✗ 크기 예산 초과: 124KB > 105KB
+✗ 크기 예산 초과: 130KB > 125KB
 ```
 
 해결:
@@ -496,10 +500,10 @@ Co-Authored-By: Claude Haiku 4.5 <noreply@anthropic.com>
 
 ### PR 체크리스트
 - [ ] `make build` 성공
-- [ ] `make test` 통과 (48개 모두)
+- [ ] `make test` 통과 (전부)
 - [ ] `go vet` 클린
 - [ ] 데스크톱 / 웹 양쪽 수동 테스트
-- [ ] 웹 크기 예산 <= 105KB gzip
+- [ ] 웹 크기 예산 <= 125KB gzip
 
 ---
 

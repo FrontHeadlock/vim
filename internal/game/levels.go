@@ -119,6 +119,18 @@ var levels = []Level{
 		},
 		Solution: "lllxjlljhhhxjlllllll",
 	},
+	{
+		ID:    "1-6",
+		Kind:  "navigate",
+		Title: "1-6  Bonus: No Counting",
+		Hint:  "This line is long and one key sits behind you. Counting cells with hjkl is slow — F/f leap straight to a landmark, in either direction.",
+		Cmds: []Cmd{
+			{"f{char}", "leap forward to that char"},
+			{"F{char}", "leap backward to that char"},
+		},
+		Map:      []string{"K" + strings.Repeat(".", 14) + "@K" + strings.Repeat(".", 12) + "$"},
+		Solution: "FKfKf$",
+	},
 
 	// ───────────────────────── W2  Jump Canyon (fast motion) ─────────────────────────
 	{

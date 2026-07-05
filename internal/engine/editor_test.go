@@ -41,6 +41,14 @@ func TestDeleteMotions(t *testing.T) {
 	eq(t, "d2w", run(t, "one two three", "d2w"), "three")
 }
 
+// TestOpFindCount 는 B3: opFind(d/c/y + f/F/t/T) 가 count 를 반영하는지
+// 확인한다 — 예전엔 e.takeCount() 로 소비만 하고 버려서 "d2fl" 이 "dfl" 처럼
+// 첫 번째 'l' 에서만 멈췄다(par 오염 위험, findChar 통합과 함께 수정).
+func TestOpFindCount(t *testing.T) {
+	eq(t, "d2fl", run(t, "hello", "d2fl"), "o")
+	eq(t, "dF(", run(t, "foo(bar)", "$dF("), "foo)")
+}
+
 func TestChangeMotions(t *testing.T) {
 	eq(t, "cw=ce", run(t, "hello world", "cwbye<esc>"), "bye world")
 	eq(t, "ciw", run(t, "foo bar baz", "8lciwX<esc>"), "foo bar X")
@@ -103,6 +111,73 @@ func TestUndoRedo(t *testing.T) {
 	eq(t, "undo2", strings.Join(e.Lines(), ""), "hello")
 	feedKeys(e, "<c-r>") // redo "ello"
 	eq(t, "redo", strings.Join(e.Lines(), ""), "ello")
+}
+
+// TestUndoCapLimitsDepth 는 B1: undo 스택이 undoCap 을 넘지 않는지 확인한다
+// (200회 편집 후에도 앞쪽이 잘려나가 상한을 유지해야 함).
+func TestUndoCapLimitsDepth(t *testing.T) {
+	e := NewEditor([]string{strings.Repeat("x", 250)})
+	for i := 0; i < 200; i++ {
+		feedKeys(e, "x")
+	}
+	if len(e.undo) > undoCap {
+		t.Fatalf("len(e.undo)=%d want <= %d", len(e.undo), undoCap)
+	}
+}
+
+// TestNoOpInsertDoesNotPushUndo 는 B2: "i<esc>" 처럼 버퍼를 실제로 바꾸지
+// 않은 insert 가 undo 스택에 스냅샷을 남기지 않는지 확인한다 — 예전엔 이게
+// 쌓여서 그 다음 "u" 가 커서만 되돌리고 "아무 일도 안 하는 것처럼" 보였다.
+func TestNoOpInsertDoesNotPushUndo(t *testing.T) {
+	e := NewEditor([]string{"hello"})
+	feedKeys(e, "i<esc>")
+	if len(e.undo) != 0 {
+		t.Fatalf("무변경 insert 후 len(e.undo)=%d want 0", len(e.undo))
+	}
+}
+
+// TestNoOpReplaceDoesNotPushUndo 는 B2 일반화: 'r' 로 같은 문자를 치환해도
+// (insert 뿐 아니라 전체 무변경 커밋에 적용) undo 스택이 늘지 않는지 확인한다.
+func TestNoOpReplaceDoesNotPushUndo(t *testing.T) {
+	e := NewEditor([]string{"abc"})
+	e.SetCursor(0, 0)
+	feedKeys(e, "ra") // col0 의 'a' 를 그대로 'a' 로 치환(무변경)
+	if len(e.undo) != 0 {
+		t.Fatalf("무변경 치환 후 len(e.undo)=%d want 0", len(e.undo))
+	}
+}
+
+// TestChangeWordDotRepeatTwice 는 B2 undoPending 누수 회귀 테스트: dot 재생이
+// insert 종료(finishInsertDot)를 거치면서 undoPending 이 소비되지 않고 다음
+// 진짜 커맨드로 새어 들어가 dot 을 엉뚱한 키로 덮어쓰던 결함을 잡는다
+// ("cwbar<esc>w.w." 가 세 단어 전부를 바꿔야 한다 — 안 그러면 두 번째 "." 가
+// 무력화된다).
+func TestChangeWordDotRepeatTwice(t *testing.T) {
+	got := run(t, "foo foo foo", "cwbar<esc>w.w.")
+	eq(t, "cw-dot-twice", got, "bar bar bar")
+}
+
+// TestHugeCountInVisualDoesNotHang 은 F3 fuzz 로 발견한 결함의 회귀 테스트:
+// Visual 모드의 count 누적(B7)이 normal.go 의 maxCount 상한을 상속하지 않아,
+// "V" + 긴 숫자열 + 모션이 motionOnce 반복을 그대로 O(count) 로 돌려 멈췄다 —
+// count 누적 로직이 두 곳에 복제되면서 상한만 한쪽에 안 걸린 사례.
+func TestHugeCountInVisualDoesNotHang(t *testing.T) {
+	e := NewEditor([]string{"hello world"})
+	feedKeys(e, "V2000000000w") // 상한 없으면 이 한 줄이 테스트를 멈춘다
+	if e.count != 0 {
+		t.Fatalf("count=%d, 모션 소비 후 0 이어야 함", e.count)
+	}
+}
+
+// TestHugeCountDoesNotHang 은 F3 fuzz 로 발견한 결함의 회귀 테스트: count
+// 접두사에 상한이 없으면 "2000000000B" 같은 입력이 doMotion 의 O(count) 루프를
+// 그대로 실행해 멈춘다(웹 빌드에선 탭이 얼어붙음). maxCount 로 잘려야 한다.
+func TestHugeCountDoesNotHang(t *testing.T) {
+	e := NewEditor([]string{"hello world"})
+	feedKeys(e, "2000000000B") // 상한 없으면 이 한 줄이 테스트를 멈춘다
+	if e.count != 0 {
+		t.Fatalf("count=%d, 모션 소비 후 0 이어야 함", e.count)
+	}
 }
 
 func TestDotRepeat(t *testing.T) {
@@ -214,6 +289,21 @@ func TestSearchBackward(t *testing.T) {
 	feedKeys(e, "?target<cr>")
 	if e.col != 0 && e.col != 14 {
 		t.Fatalf("역검색 실패: col=%d", e.col)
+	}
+}
+
+// TestParseKeysUTF8 는 A4: 멀티바이트 문자가 바이트 단위로 쪼개지지 않고
+// rune 하나당 Key 하나로 파싱되는지 확인한다.
+func TestParseKeysUTF8(t *testing.T) {
+	keys := ParseKeys("한글<esc>")
+	if len(keys) != 3 {
+		t.Fatalf("len(keys)=%d want 3 (got %+v)", len(keys), keys)
+	}
+	if keys[0].R != '한' || keys[1].R != '글' {
+		t.Fatalf("keys[0..1]=%+v want 한,글", keys[:2])
+	}
+	if keys[2].S != "esc" {
+		t.Fatalf("keys[2]=%+v want esc", keys[2])
 	}
 }
 

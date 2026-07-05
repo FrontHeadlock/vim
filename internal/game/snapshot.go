@@ -39,6 +39,8 @@ func (g *Game) Snapshot() map[string]any {
 		base["clearPar"] = g.clear.Par
 		base["clearStars"] = g.clear.Stars
 		base["clearBest"] = g.clear.Best
+		base["clearIsNew"] = g.clear.IsNew
+		base["clearYours"] = g.clear.Yours
 		solution := ""
 		if g.clear.Stars == 3 {
 			solution = g.lv.Solution
@@ -64,8 +66,10 @@ func (g *Game) Snapshot() map[string]any {
 			wOut[wi] = lvOut
 		}
 		base["worlds"] = wOut
-		base["selRow"] = g.selRow
-		base["selCol"] = g.selCol
+		// C3: 내부 필드는 selWorld/selLevel 로 개명했지만, 이 JSON 키(selRow/selCol)는
+		// 웹 계약이라 유지한다(renderer.js 가 이 이름으로 읽음 — 바꾸려면 동시 수정 필요).
+		base["selRow"] = g.selWorld
+		base["selCol"] = g.selLevel
 		return base
 	}
 
@@ -74,6 +78,7 @@ func (g *Game) Snapshot() map[string]any {
 	if g.state == StateDrill {
 		base["state"] = "drill"
 		base["drill"] = map[string]any{
+			"kind":      g.drillKind, // B2: "" · "w" · "f" · "x" — HUD 표시용
 			"streak":    g.drillStreak,
 			"totalKeys": g.drillTotalKeys,
 			"totalPar":  g.drillTotalPar,
@@ -105,10 +110,23 @@ func (g *Game) Snapshot() map[string]any {
 		base["keyPos"] = kp
 	} else {
 		base["target"] = toAnySlice(g.lv.Target)
+		matched := g.MatchedRows()
+		mOut := make([]any, len(matched))
+		for i, m := range matched {
+			mOut[i] = m
+		}
+		base["matchedRows"] = mOut
 	}
 
-	r1, c1, r2, c2, line, ok := g.ed.VisualSpan()
-	base["visual"] = map[string]any{"r1": r1, "c1": c1, "r2": r2, "c2": c2, "line": line, "ok": ok}
+	// F1: 비주얼 선택 기하 계산을 게임이 한 번만 해서 넘긴다 — 렌더러(desktop
+	// render.go, 여기(웹))가 각자 inVisual 을 복제하던 것을 없앤다(C1 의 NEW!
+	// 판정 통합과 같은 원칙).
+	vRows := g.VisualRows()
+	vOut := make([]any, len(vRows))
+	for i, vr := range vRows {
+		vOut[i] = map[string]any{"row": vr.Row, "c1": vr.C1, "c2": vr.C2}
+	}
+	base["visualRows"] = vOut
 
 	effs := make([]any, len(g.effects))
 	for i, e := range g.effects {

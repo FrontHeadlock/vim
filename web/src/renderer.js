@@ -4,6 +4,8 @@
 'use strict';
 
 const CW = 14, LH = 28, W = 960, H = 600;
+// D3: 이 팔레트가 canonical — cmd/desktop/render.go 의 col* 상수와
+// index.html 의 CSS 변수(3벌째)는 여기 값을 손으로 맞춘 사본이다.
 const COL = {
   bg: '#1e202a', floor: '#4a4f5e', key: '#f4d03f', keyDim: '#6a6030',
   pest: '#e54b4b', exit: '#4fc36b', cursor: '#3aa0d0', ins: '#f4d03f',
@@ -65,8 +67,9 @@ class Renderer {
 
   drawPlaying(st) {
     this.clear();
+    // B2: st.title 이 생성기별 유형을 이미 담고 있다("DRILL"/"DRILL [w]"/...).
     let hud = st.drill
-      ? `DRILL   streak ${st.drill.streak}`
+      ? `${st.title}   streak ${st.drill.streak}`
       : `level ${st.level}/${st.levelCount}`;
     hud += st.kind === 'navigate'
       ? `   keys ${st.keys}/${st.keysNeed}   bugs ${st.bugs}`
@@ -99,14 +102,18 @@ class Renderer {
   }
 
   drawBuffer(st, ox, oy, target) {
-    const v = st.visual || { ok: false };
+    // F1: 비주얼 선택 구간·목표줄 일치 여부는 게임이 계산해 내려준다
+    // (visualRows/matchedRows) — 렌더러는 읽기만 한다.
+    const visByRow = new Map((st.visualRows || []).map(v => [v.row, v]));
+    const matched = st.matchedRows || [];
     (st.lines || []).forEach((line, r) => {
-      if (target && r < target.length && line === target[r]) {
+      if (target && matched[r]) {
         this.rect(ox - 2, oy + r * LH - 2, Math.max(line.length, 1) * CW + 4, LH - 2, COL.match);
       }
+      const vr = visByRow.get(r);
       for (let c = 0; c < line.length; c++) {
         const px = ox + c * CW, py = oy + r * LH;
-        if (v.ok && this.inVisual(r, c, v)) this.rect(px - 1, py - 2, CW, LH - 4, COL.visual);
+        if (vr && c >= vr.c1 && c <= vr.c2) this.rect(px - 1, py - 2, CW, LH - 4, COL.visual);
         if (r === st.row && c === st.col) {
           this.rect(px - 1, py - 2, CW, LH - 4, st.mode.includes('INSERT') ? COL.ins : COL.cursor);
         }
@@ -134,15 +141,6 @@ class Renderer {
     });
   }
 
-  inVisual(r, c, v) {
-    if (r < v.r1 || r > v.r2) return false;
-    if (v.line) return true;
-    if (v.r1 === v.r2) return c >= v.c1 && c <= v.c2;
-    if (r === v.r1) return c >= v.c1;
-    if (r === v.r2) return c <= v.c2;
-    return true;
-  }
-
   drawLevelClear(st) {
     this.clear();
     this.ch(`LEVEL ${st.id} CLEAR!`, 340, 220, COL.exit);
@@ -150,10 +148,13 @@ class Renderer {
     const stars = '*'.repeat(st.clearStars) + '-'.repeat(3 - st.clearStars);
     this.ch(`par       : ${st.clearPar}   ${stars}`, 340, 290, COL.text);
     let best = `best      : ${st.clearBest}`;
-    if (!st.clearBest || st.clearStrokes < st.clearBest) best += ` -> ${st.clearStrokes} (NEW!)`;
+    if (st.clearIsNew) best += ` -> ${st.clearStrokes} (NEW!)`;
     this.ch(best, 340, 320, COL.muted);
-    if (st.clearStars === 3 && st.solution) this.ch(`solution  : ${st.solution}`, 340, 350, COL.key);
-    this.ch('[Enter] next   [r] retry', 340, 390, COL.muted);
+    // B4: 내가 실제로 입력한 키 시퀀스 — 별점과 무관하게 항상 표시(제작자
+    // solution 과 달리 스포일러가 아니다). COPY 버튼(glue.js)이 이 값을 읽는다.
+    this.ch(`yours     : ${st.clearYours || ''}`, 340, 350, COL.text);
+    if (st.clearStars === 3 && st.solution) this.ch(`solution  : ${st.solution}`, 340, 380, COL.key);
+    this.ch('[Enter] next   [r] retry', 340, 420, COL.muted);
   }
 
   drawLevelSelect(st) {
@@ -178,6 +179,6 @@ class Renderer {
     this.clear();
     this.ch('ALL CLEAR!', 360, 250, COL.exit);
     this.ch(`W1-W${st.worldCount} ${st.levelCount} levels complete.`, 300, 290, COL.text);
-    this.ch('press the Restart button to replay', 250, 330, COL.muted);
+    this.ch('[Enter] level select', 340, 330, COL.muted);
   }
 }

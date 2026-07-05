@@ -1,6 +1,8 @@
 // Package store 는 레벨 진행 상황(잠금 해제·최고 기록·별점)의 영속화를 맡는다.
-// 웹 빌드는 localStorage(store_js.go), 데스크톱 빌드는 인메모리(store_other.go)로
-// 빌드 태그에 따라 구현이 갈리고, 직렬화 코덱(이 파일)은 양쪽이 공유한다.
+// 웹 빌드는 localStorage, 데스크톱 빌드는 os.UserConfigDir() 하위 파일로
+// (둘 다 store_other.go/store_js.go, 빌드 태그로 구현이 갈린다) 저장하고,
+// 직렬화 코덱(이 파일)은 양쪽이 공유한다. go test 하에서는 store_other.go 의
+// New() 가 실제 파일을 건드리지 않는 인메모리 구현으로 자동 대체된다.
 package store
 
 import (
@@ -17,7 +19,7 @@ type LevelProgress struct {
 
 // Store 는 진행 상황 영속화 인터페이스.
 // dom_js.go/dom_other.go와 동일하게 빌드 태그로 구현을 분리한다
-// (store_js.go: localStorage, store_other.go: 인메모리).
+// (store_js.go: localStorage, store_other.go: 파일 — go test 하에서는 인메모리).
 type Store interface {
 	Load() map[string]LevelProgress // key = Level.ID
 	Save(map[string]LevelProgress)
