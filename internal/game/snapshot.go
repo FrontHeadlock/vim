@@ -86,7 +86,10 @@ func (g *Game) Snapshot() map[string]any {
 	}
 	base["kind"] = g.lv.Kind
 	base["id"] = g.lv.ID
+	// title/hint 는 런타임 생성 레벨(:drill)만 채워진다 — 커리큘럼 레벨의
+	// 표시 데이터는 JS 쪽 LEVEL_META(생성 파일)가 id 로 조회한다(A1).
 	base["title"] = g.lv.Title
+	base["hint"] = g.lv.Hint
 	base["lines"] = toAnySlice(g.ed.Lines())
 	base["row"] = g.ed.Row()
 	base["col"] = g.ed.Col()

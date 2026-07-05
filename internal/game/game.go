@@ -87,6 +87,15 @@ func (g *Game) LoadLevel(idx int) {
 	g.loadLevelData(levels[idx])
 }
 
+// LoadCustomLevel 은 커리큘럼 밖의 임의 Level 을 StatePlaying 으로 로드한다.
+// 소비자: 테스트 하네스(test/game — 생성기 문제·회귀용 맵 검증), 그리고
+// 백로그의 :new 샌드박스/사용자 레벨이 쓰게 될 진입점이다. levelIdx 는
+// 건드리지 않으므로 클리어 시 다음 커리큘럼 해금은 현재 위치 기준이다.
+func (g *Game) LoadCustomLevel(lv Level) {
+	g.state = StatePlaying
+	g.loadLevelData(lv)
+}
+
 // loadLevelData 는 정규 레벨과 :drill 문제가 공유하는 버퍼 초기화 로직.
 // state 는 건드리지 않는다 — 호출자가 StatePlaying/StateDrill 등을 정한다.
 func (g *Game) loadLevelData(lv Level) {
@@ -125,7 +134,6 @@ func (g *Game) loadLevelData(lv Level) {
 	} else {
 		g.ed = engine.NewEditor(append([]string(nil), g.lv.Map...))
 	}
-	g.syncDOM()
 }
 
 // PestsLeft 는 버퍼에 남은 버그(*) 수. 승리 판정과 HUD 렌더 양쪽에서 쓴다.
@@ -296,7 +304,7 @@ func (g *Game) recordClear() int {
 }
 
 // Input 은 프론트엔드(Ebiten/JS 공통)가 호출하는 단일 입력 진입점.
-// 상태별로 키를 해석한다 — strokes 카운트/checkWin/syncDOM 은 StatePlaying 의
+// 상태별로 키를 해석한다 — strokes 카운트/checkWin 은 StatePlaying 의
 // feed() 경로 안에서만 일어난다. 프레임 구동(이펙트 TTL 감소)은 Tick() 이
 // 별도로 맡으므로 여기서는 호출하지 않는다.
 func (g *Game) Input(k engine.Key) {
@@ -316,7 +324,6 @@ func (g *Game) Input(k engine.Key) {
 	default: // StatePlaying / StateDrill
 		g.feed(k)
 		g.checkWin()
-		g.syncDOM()
 	}
 }
 
@@ -366,7 +373,6 @@ func (g *Game) inputLevelSelect(k engine.Key) {
 	}
 	if k.S == "esc" {
 		g.state = StatePlaying
-		g.syncDOM()
 	}
 }
 
@@ -381,7 +387,6 @@ func (g *Game) EnterLevelSelect() {
 			}
 		}
 	}
-	g.syncDOM()
 }
 
 func (g *Game) checkWin() {
@@ -438,7 +443,6 @@ func (g *Game) advance() {
 	} else {
 		g.state = StateAllClear
 	}
-	g.syncDOM()
 }
 
 // cellAt 은 (r,c) 의 버퍼 문자를 돌려준다. 범위 밖이면 ' '.

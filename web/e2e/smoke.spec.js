@@ -42,6 +42,26 @@ test('hjkl 이동, :q 로 레벨 선택 진입', async ({ page }) => {
   expect(afterQuit.state).toBe('select');
 });
 
+test('사이드패널이 LEVEL_META(생성 파일)로 채워진다', async ({ page }) => {
+  await page.goto('/src/');
+  await page.waitForFunction(() => typeof window.vqState === 'function', null, {
+    timeout: 15000,
+  });
+  await dismissIntro(page);
+
+  // 커리큘럼 표시 데이터가 wasm 이 아니라 levels_meta.js 에서 온다 —
+  // 제목/힌트/명령 팔레트가 실제로 패널에 채워졌는지 확인한다.
+  await expect(page.locator('#level-title')).toHaveText(/1-1/);
+  await expect(page.locator('#hint')).toContainText('hjkl', { timeout: 5000 });
+  await expect(page.locator('#solve-cmds .cmd').first()).toBeVisible();
+
+  // 레벨 선택으로 나가면 패널도 상태에 맞게 바뀐다.
+  await page.locator('#game').click();
+  await page.keyboard.type(':q');
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#level-title')).toHaveText('SELECT LEVEL');
+});
+
 test('Esc 로 레벨 선택에서 복귀', async ({ page }) => {
   await page.goto('/src/');
   await page.waitForFunction(() => typeof window.vqState === 'function', null, {
