@@ -3,9 +3,9 @@
 # 네이티브 바이너리로 컴파일한다. 웹 빌드는 build.sh(TinyGo) 를 쓸 것.
 set -euo pipefail
 
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/.."
 
 echo "▶ 데스크톱 빌드 중..."
-go build -o vimquest .
+go build -o vimquest ./cmd/desktop
 
 echo "✅ 빌드 완료 → ./vimquest"

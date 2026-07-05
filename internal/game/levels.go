@@ -1,4 +1,6 @@
-package main
+package game
+
+import "strings"
 
 // Cmd is one "command + description" line shown in the top-right HINT panel.
 // Instead of handing over the full answer sequence, it lists the commands used in
@@ -25,7 +27,7 @@ type Level struct {
 	Solution string   // verification (navigate/edit 공통) + par 산출 기준, 3★ 클리어 전까지 게임 내 비공개
 }
 
-// worldGroups(main.go/game.go)는 levels 를 ID 접두어가 바뀌는 지점 기준으로
+// WorldGroups 는 levels 를 ID 접두어가 바뀌는 지점 기준으로
 // 묶는다 — 그래서 같은 월드의 레벨은 반드시 이 배열 안에서 서로 인접해야
 // 한다(월드별로 나중에 추가한 레벨을 배열 맨 끝에 몰아 붙이면 그 월드가
 // 두 조각으로 쪼개져 레벨 선택 화면에 엉뚱한 열이 하나 더 생긴다).
@@ -598,4 +600,47 @@ var levels = []Level{
 		Target:   []string{"one two", "x = 99", "bacd"},
 		Solution: "wdawj$ciw99<esc>j0xp",
 	},
+}
+
+// LevelCount 는 전체 커리큘럼 레벨 수(렌더러의 "level N/M" 표기용).
+func LevelCount() int { return len(levels) }
+
+// LevelAt 은 i 번째 레벨 정의를 돌려준다(레벨 선택 화면 렌더용).
+func LevelAt(i int) Level { return levels[i] }
+
+// worldGroupsCache 는 WorldGroups() 의 계산 결과를 담아둔다. levels 는 런타임에
+// 절대 바뀌지 않는 정적 슬라이스라 한 번만 계산하면 된다 — 캐싱이 없으면
+// 전체 클리어 화면처럼 매 프레임(최대 60Hz) 불리는 경로에서 매번
+// 재스캔+재할당된다. 단일 고루틴(Ebiten Update/Draw, 또는 wasm/JS 단일 스레드
+// 이벤트 루프)에서만 호출되므로 락 없이 캐싱해도 안전하다.
+var worldGroupsCache [][]int
+
+// WorldGroups 는 levels 를 Level.ID 접두어(월드 번호) 기준으로 묶어
+// [월드][월드 내 레벨] = levels 인덱스 형태로 반환한다.
+func WorldGroups() [][]int {
+	if worldGroupsCache != nil {
+		return worldGroupsCache
+	}
+	var groups [][]int
+	var cur []int
+	curWorld := ""
+	for i, lv := range levels {
+		world := lv.ID
+		if idx := strings.IndexByte(lv.ID, '-'); idx >= 0 {
+			world = lv.ID[:idx]
+		}
+		if world != curWorld {
+			if len(cur) > 0 {
+				groups = append(groups, cur)
+			}
+			cur = nil
+			curWorld = world
+		}
+		cur = append(cur, i)
+	}
+	if len(cur) > 0 {
+		groups = append(groups, cur)
+	}
+	worldGroupsCache = groups
+	return groups
 }

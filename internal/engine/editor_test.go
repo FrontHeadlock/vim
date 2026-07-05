@@ -1,4 +1,4 @@
-package main
+package engine
 
 import (
 	"strings"
@@ -8,7 +8,7 @@ import (
 // feedKeys 는 "diw", "cw bye<esc>" 같은 입력 문자열을 파싱해 엔진에 흘려보낸다.
 // 토큰화 자체는 프로덕션 코드 keys.go 의 parseKeys 에 위임한다.
 func feedKeys(e *Editor, s string) {
-	for _, k := range parseKeys(s) {
+	for _, k := range ParseKeys(s) {
 		e.Feed(k)
 	}
 }

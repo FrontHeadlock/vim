@@ -1,15 +1,15 @@
-package main
-
-import "strings"
-
-// editor.go — Vim 편집 엔진(서브셋). Ebiten 과 무관한 순수 로직이라 headless 테스트가 가능하다.
+// Package engine 은 VimQuest 의 Vim 편집 엔진(서브셋)이다.
+// 게임 규칙·렌더링·플랫폼과 완전히 무관한 순수 로직으로, 표준 라이브러리 외에
+// 아무것도 import 하지 않는다 — headless 테스트와 TinyGo wasm 빌드의 전제.
 //
-// 지원: Normal / Insert / Visual / Visual-Line 모드,
-//   모션 h j k l 0 ^ $ w b e W B E f F t T ; , gg G,
-//   연산자 d c y (+모션 / +텍스트객체 / 중복 dd cc yy) + count,
-//   x X r s S D C p P, i a o O A I, u / Ctrl-r, . 반복,
-//   텍스트객체 iw aw i" a" i' a' i( a( i) a) ib i{ a{ iB i[ a[ i< a<,
-//   검색 / ? n N (pseudo-mode).
+// Editor 의 내부 상태는 전부 비공개다. 바깥 레이어(게임 규칙, 렌더러)는 파일
+// 하단의 읽기 전용 접근자와 SetCursor 만 쓸 수 있다.
+package engine
+
+import (
+	"strconv"
+	"strings"
+)
 
 type Mode int
 
@@ -39,45 +39,37 @@ type Editor struct {
 	lines [][]rune
 	row   int
 	col   int
-	dcol  int // j/k 용 목표 열
+	dcol  int // j/k 목표 열
 	mode  Mode
 
-	// Normal 모드 파싱 상태
 	count   int
-	op      rune   // 0, 'd','c','y'
-	await   string // "", "f","F","t","T","r","g"
-	pendObj rune   // 0, 또는 'i'/'a' (텍스트 객체 한정자 대기)
+	op      rune
+	await   string
+	pendObj rune
 
-	// Visual 앵커
 	vrow, vcol int
 
-	// 레지스터
 	reg         []rune
 	regLines    [][]rune
 	regLinewise bool
 
-	// f/t 반복
 	lastFindCmd  rune
 	lastFindChar rune
 
-	// undo/redo
 	undo []snapshot
 	redo []snapshot
 
-	// dot(.) 반복
 	curKeys   []Key
 	dot       []Key
-	changed   bool // 현재 명령이 버퍼를 변경했는가
+	changed   bool
 	replaying bool
 
-	// 검색 (/ ? n N) — pseudo-mode
 	searching     bool
-	searchDir     rune   // '/' 정방향, '?' 역방향
-	searchQuery   []rune // 입력 중인 쿼리
-	lastSearch    string // 확정된 마지막 검색어 (n/N 반복용)
-	lastSearchDir rune   // 확정 시점의 방향
+	searchDir     rune
+	searchQuery   []rune
+	lastSearch    string
+	lastSearchDir rune
 
-	// 상태 표시
 	lastKey    string
 	pendingStr string
 }
@@ -369,7 +361,7 @@ func (e *Editor) updatePending() {
 	}
 	s := ""
 	if e.count > 0 {
-		s += itoa(e.count)
+		s += strconv.Itoa(e.count)
 	}
 	if e.op != 0 {
 		s += string(e.op)
@@ -390,7 +382,7 @@ func (e *Editor) clearPending() {
 	e.pendObj = 0
 }
 
-func (e *Editor) isCmdStart() bool {
+func (e *Editor) IsCmdStart() bool {
 	return e.count == 0 && e.op == 0 && e.await == "" && e.pendObj == 0
 }
 
@@ -398,11 +390,11 @@ func (e *Editor) isCmdStart() bool {
 
 func (e *Editor) feedNormal(k Key) {
 	// dot(.) 반복은 별도 처리(녹화 안 함)
-	if k.R == '.' && e.isCmdStart() {
+	if k.R == '.' && e.IsCmdStart() {
 		e.replayDot()
 		return
 	}
-	if e.isCmdStart() && !e.replaying {
+	if e.IsCmdStart() && !e.replaying {
 		e.curKeys = nil
 		e.changed = false
 	}
@@ -503,7 +495,7 @@ func (e *Editor) feedNormal(k Key) {
 	case 'G':
 		n := e.count // takeCount() 이전에 원본 보존(0 = count 없음 = 마지막 줄)
 		e.count = 0
-		e.gotoLine(n)
+		e.GotoLine(n)
 	case 'd', 'c', 'y':
 		e.op = r
 		return
@@ -571,7 +563,7 @@ func (e *Editor) finishIfBoundary() {
 	if e.replaying {
 		return
 	}
-	if e.mode == ModeNormal && e.isCmdStart() && e.changed {
+	if e.mode == ModeNormal && e.IsCmdStart() && e.changed {
 		e.dot = append([]Key(nil), e.curKeys...)
 		e.changed = false
 	}
@@ -862,7 +854,7 @@ func (e *Editor) repeatFind(reverse bool) {
 	e.findChar(cmd, e.lastFindChar, e.takeCount())
 }
 
-func (e *Editor) gotoLine(count int) {
+func (e *Editor) GotoLine(count int) {
 	if count <= 0 {
 		e.row = len(e.lines) - 1
 	} else {
@@ -1550,3 +1542,44 @@ func (e *Editor) VisualSpan() (r1, c1, r2, c2 int, lineMode, ok bool) {
 	}
 	return r1, c1, r2, c2, e.mode == ModeVisualLine, true
 }
+
+// ---- 패키지 밖(게임 규칙·렌더러)용 공개 API ----
+//
+// 내부 필드를 직접 노출하지 않는 이유: 과거 게임 코드가 row/col 을 직접
+// 대입하면서 dcol(수직 모션의 목표 열)을 빼먹어 커서가 엉뚱한 열로 튀는
+// 버그가 실제로 있었다. 좌표 이동은 SetCursor 하나로만 가능하게 잠근다.
+
+// Row/Col 은 현재 커서 위치.
+func (e *Editor) Row() int { return e.row }
+func (e *Editor) Col() int { return e.col }
+
+// SetCursor 는 커서를 (row,col) 로 옮기면서 j/k 의 목표 열(dcol)도 함께 맞춘다.
+func (e *Editor) SetCursor(row, col int) {
+	e.row, e.col = row, col
+	e.clamp()
+	e.dcol = e.col
+}
+
+// Cell 은 (row,col) 의 문자를 돌려준다. 버퍼 범위 밖이면 ok=false.
+func (e *Editor) Cell(row, col int) (rune, bool) {
+	if row < 0 || row >= len(e.lines) || col < 0 || col >= len(e.lines[row]) {
+		return 0, false
+	}
+	return e.lines[row][col], true
+}
+
+// Mode 는 현재 편집 모드(Normal/Insert/Visual/VisualLine).
+func (e *Editor) Mode() Mode { return e.mode }
+
+// Searching 은 검색 쿼리(/ ?) 입력 중인지 여부.
+func (e *Editor) Searching() bool { return e.searching }
+
+// MidCommand 는 여러 키로 이뤄진 명령이 진행 중인지 알려준다
+// (f/t/r/g 인자 대기, 연산자(d/c/y) 대기, 텍스트 객체 한정자(i/a) 대기).
+func (e *Editor) MidCommand() bool { return e.await != "" || e.op != 0 || e.pendObj != 0 }
+
+// PendingString 은 상태바에 표시할 입력 중인 명령 문자열(예: "2d", "/foo").
+func (e *Editor) PendingString() string { return e.pendingStr }
+
+// LastKey 는 마지막으로 입력된 키의 표시용 문자열.
+func (e *Editor) LastKey() string { return e.lastKey }

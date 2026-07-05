@@ -1,3 +1,13 @@
 .omc/
-web/game.wasm
+web/dist/
 /vimquest
+.DS_Store
+.idea/
+
+# 원격에는 소스코드 + 공개 문서(README, ROADMAP, ARCHITECTURE, DEVELOPMENT)만 둔다.
+# 그 외 계획/스펙 문서(SPEC_PHASE4.md, PLAN_PHASE4.md, refactor.md 등)는 로컬 작업물로만 남긴다.
+*.md
+!README.md
+!ROADMAP.md
+!docs/ARCHITECTURE.md
+!docs/DEVELOPMENT.md

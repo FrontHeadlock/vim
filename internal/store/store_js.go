@@ -1,6 +1,6 @@
 //go:build js
 
-package main
+package store
 
 import "syscall/js"
 
@@ -15,7 +15,7 @@ const legacyStoreKey = "vimquest.v1"
 
 type jsStore struct{}
 
-func newProgressStore() ProgressStore { return jsStore{} }
+func New() Store { return jsStore{} }
 
 func (jsStore) Load() map[string]LevelProgress {
 	ls := js.Global().Get("localStorage")

@@ -276,7 +276,7 @@
     </div>
   </div>
 
-  <canvas id="game" width="960" height="600"></canvas>
+  <canvas id="game" width="960" height="600" tabindex="0" style="outline: none;"></canvas>
 
   <footer>
     move <kbd>h</kbd><kbd>j</kbd><kbd>k</kbd><kbd>l</kbd> &nbsp; word <kbd>w</kbd><kbd>b</kbd><kbd>e</kbd> &nbsp;
@@ -349,11 +349,10 @@
     </div>
   </div>
 
-<script src="wasm_exec.js"></script>
+<script src="../dist/wasm_exec.js"></script>
 <script src="renderer.js"></script>
 <script src="glue.js"></script>
 <script>
-  // KO/EN manual toggle
   function toggleLang(){
     const en = document.getElementById('manual-en');
     const ko = document.getElementById('manual-ko');
@@ -368,8 +367,6 @@
       : '⚠ Keys work only in English input mode (check your 한/영 key)';
   }
 
-  // KO/EN cheatsheet toggle — independent from the manual's language state,
-  // so switching one doesn't surprise-flip the other.
   function toggleCheatLang(){
     const en = document.getElementById('cheat-en');
     const ko = document.getElementById('cheat-ko');
@@ -380,21 +377,18 @@
     btn.textContent = showKo ? 'English' : '한국어';
   }
 
-  // CRT scanline/vignette overlay toggle (default on, matches shipped look)
   function toggleCrt(){
     document.body.classList.toggle('crt-off');
     const off = document.body.classList.contains('crt-off');
     document.getElementById('crt-btn').textContent = off ? '▭ CRT OFF' : '▤ CRT ON';
   }
 
-  // Hangul IME detection
   const imeWarn = document.getElementById('ime-warning');
   function isHangul(key){ return /[㄰-㆏가-힣]/.test(key); }
   window.addEventListener('keydown', (e) => {
     if (e.isComposing || e.keyCode === 229 || isHangul(e.key)) imeWarn.style.display = 'block';
   }, true);
 
-  // cheatsheet toggle (Ctrl + /), esc to close
   const sheet = document.getElementById('cheatsheet');
   window.addEventListener('keydown', (e) => {
     if (e.ctrlKey && e.key === '/'){ e.preventDefault(); sheet.classList.toggle('show'); }
@@ -417,7 +411,6 @@
     document.getElementById('mute-btn').textContent = muted ? '🔇 MUTED' : '🔊 SOUND';
   }
 
-  // name: "key" | "bug" | "blocked" | "clear"
   function playSfx(name){
     if (muted || !audioCtx) return;
     const presets = {
@@ -484,9 +477,25 @@
   // load WASM (TinyGo) — go.run() 은 web_js.go 의 main() 을 실행해
   // vqInput/vqState/vqTick 을 전역에 등록한 뒤 select{} 에서 대기한다.
   const go = new Go();
-  WebAssembly.instantiateStreaming(fetch('game.wasm'), go.importObject)
-    .then((res) => { go.run(res.instance); vqInit(); })
-    .catch((err) => { document.getElementById('hint').textContent = 'Failed to load game: ' + err; });
+  WebAssembly.instantiateStreaming(fetch('../dist/game.wasm'), go.importObject)
+    .then((res) => {
+      console.log('WASM loaded, running...');
+      go.run(res.instance);
+      console.log('Go runtime started');
+      console.log('vqInput:', typeof window.vqInput);
+      console.log('vqState:', typeof window.vqState);
+      console.log('vqTick:', typeof window.vqTick);
+      if (typeof window.vqInput === 'function') {
+        vqInit();
+        console.log('Game initialized');
+      } else {
+        console.error('Go exports not available after go.run()');
+      }
+    })
+    .catch((err) => {
+      console.error('WASM load error:', err);
+      document.getElementById('hint').textContent = 'Failed to load game: ' + err;
+    });
 </script>
 </body>
 </html>

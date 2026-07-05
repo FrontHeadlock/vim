@@ -56,18 +56,31 @@ function vqCallAndDraw(fn) {
 }
 
 function vqHandleKey(e) {
-  if (e.isComposing || e.keyCode === 229) return; // 한글 IME 조합 중 — 배너가 안내
+  if (e.isComposing || e.keyCode === 229) return;
   let tok = null;
   if (e.key === 'Enter') tok = '<cr>';
   else if (e.key === 'Escape') tok = '<esc>';
   else if (e.key === 'Backspace') tok = '<bs>';
   else if (e.ctrlKey && e.key.toLowerCase() === 'r') tok = '<c-r>';
-  else if (e.ctrlKey || e.altKey || e.metaKey) return; // 다른 조합키는 브라우저 기본 동작에 맡긴다
+  else if (e.ctrlKey || e.altKey || e.metaKey) return;
   else if (e.key.length === 1) tok = e.key;
-  else return; // Tab/Shift 단독 등은 무시
+  else return;
+
+  if (!vqRenderer) {
+    console.error('vqRenderer not initialized');
+    return;
+  }
+  if (typeof vqInput !== 'function') {
+    console.error('vqInput not available:', typeof vqInput);
+    return;
+  }
 
   e.preventDefault();
   const st = vqInput(tok);
+  if (!st) {
+    console.error('vqInput returned null for token:', tok);
+    return;
+  }
   vqRenderer.draw(st);
   if (st.effectsAlive) vqStartTick();
 }
@@ -77,7 +90,8 @@ function vqHandleKey(e) {
 function vqInit() {
   const canvas = document.getElementById('game');
   vqRenderer = new Renderer(canvas);
-  window.addEventListener('keydown', vqHandleKey);
+  document.addEventListener('keydown', vqHandleKey);
+  canvas.focus();
   const st = vqState();
   vqRenderer.draw(st);
   if (st.effectsAlive) vqStartTick();
