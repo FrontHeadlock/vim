@@ -2,11 +2,11 @@ package engine
 
 // undo.go — undo/redo 스택.
 
-// undoCap 은 undo 스택 깊이 상한(B1). 웹 빌드는 -gc=leaking 이라 세션 내
+// UndoCap 은 undo 스택 깊이 상한(B1). 웹 빌드는 -gc=leaking 이라 세션 내
 // 회수가 없어(build.sh 참고, drill.go 의 drillMaxRounds 와 같은 이유) 매 변경마다
 // 전체 버퍼 클론을 상한 없이 쌓으면 세션이 길어질수록 누적된다. 퍼즐 버퍼는
 // 수 줄이라 100 이면 충분히 넉넉하다.
-const undoCap = 100
+const UndoCap = 100
 
 type snapshot struct {
 	lines [][]rune
@@ -38,8 +38,8 @@ func linesEqual(a, b [][]rune) bool {
 
 func (e *Editor) pushUndo() {
 	e.undo = append(e.undo, snapshot{cloneLines(e.lines), e.row, e.col})
-	if len(e.undo) > undoCap {
-		e.undo = e.undo[len(e.undo)-undoCap:]
+	if len(e.undo) > UndoCap {
+		e.undo = e.undo[len(e.undo)-UndoCap:]
 	}
 	e.redo = nil
 	// changed 는 여기서 단정하지 않는다 — 실제로 바뀌었는지는 커맨드 경계에서

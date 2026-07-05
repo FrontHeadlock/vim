@@ -1,8 +1,12 @@
-package engine
+package enginetest
 
-import "testing"
+import (
+	"testing"
 
-// TestKeysStringRoundTrip 은 B4: KeysString(ParseKeys 의 역변환)이 특수키와
+	. "vimquest/internal/engine"
+)
+
+// TestKeysStringRoundTrip 은 KeysString(ParseKeys 의 역변환)이 특수키와
 // 일반 문자를 섞어도 ParseKeys 와 왕복 가능한지 확인한다 — "내 풀이" 문자열이
 // 다시 파싱 가능해야 par/재생 경로가 어긋나지 않는다.
 func TestKeysStringRoundTrip(t *testing.T) {

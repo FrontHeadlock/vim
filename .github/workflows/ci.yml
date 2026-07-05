@@ -58,7 +58,7 @@ jobs:
           restore-keys: |
             fuzz-corpus-
       - name: fuzz smoke (엔진 불변식)
-        run: go test ./internal/engine/... -run '^$' -fuzz FuzzEditorNeverPanics -fuzztime 20s
+        run: go test ./test/engine/... -run '^$' -fuzz FuzzEditorNeverPanics -fuzztime 20s
 
   web-build:
     name: TinyGo web build + 크기 예산 게이트

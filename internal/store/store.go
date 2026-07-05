@@ -25,12 +25,12 @@ type Store interface {
 	Save(map[string]LevelProgress)
 }
 
-// encodeProgress/decodeProgress 는 진행 상황을 수제 텍스트 포맷으로 직렬화한다.
+// EncodeProgress/DecodeProgress 는 진행 상황을 수제 텍스트 포맷으로 직렬화한다.
 // encoding/json 은 TinyGo wasm 빌드에서 reflection 비용이 커서(89KB→458KB,
 // gzip 33KB→170KB 실측) 레벨당 3필드뿐인 이 스키마엔 맞지 않는다.
 //
 // 포맷: "1-1:1,13,3;3-2:1,0,2"  (ID:Unlocked,BestStrokes,Stars — ';' 로 항목 구분)
-func encodeProgress(m map[string]LevelProgress) string {
+func EncodeProgress(m map[string]LevelProgress) string {
 	var b strings.Builder
 	first := true
 	for id, p := range m {
@@ -53,9 +53,9 @@ func encodeProgress(m map[string]LevelProgress) string {
 	return b.String()
 }
 
-// decodeProgress 는 encodeProgress 의 역변환. 손상된 항목은 건너뛰고 계속
+// DecodeProgress 는 EncodeProgress 의 역변환. 손상된 항목은 건너뛰고 계속
 // 진행한다 — 저장소 파싱 실패가 게임 진행을 막으면 안 된다.
-func decodeProgress(s string) map[string]LevelProgress {
+func DecodeProgress(s string) map[string]LevelProgress {
 	out := map[string]LevelProgress{}
 	if s == "" {
 		return out
@@ -86,7 +86,7 @@ func decodeProgress(s string) map[string]LevelProgress {
 	return out
 }
 
-// decodeProgressV1JSON 은 옛 encoding/json 포맷
+// DecodeProgressV1JSON 은 옛 encoding/json 포맷
 // (`{"1-1":{"Unlocked":true,"BestStrokes":13,"Stars":3}, ...}`)을 파싱하는
 // Go 쪽 폴백이다. v1→v2 마이그레이션은 원래 glue.js 가 wasm 로드 전에
 // JSON.parse 로 처리하지만, 그게 어떤 이유로든(스크립트 순서 어긋남,
@@ -94,7 +94,7 @@ func decodeProgress(s string) map[string]LevelProgress {
 // 사라지지 않도록 Go 쪽에서도 같은 v1 데이터를 읽을 수 있어야 한다.
 // encoding/json 은 TinyGo 에서 무겁다는 게 이 파일의 전제이므로, 일반
 // JSON 파서가 아니라 이 고정된 한 가지 모양만 문자열로 손수 스캔한다.
-func decodeProgressV1JSON(s string) map[string]LevelProgress {
+func DecodeProgressV1JSON(s string) map[string]LevelProgress {
 	out := map[string]LevelProgress{}
 	s = strings.TrimSpace(s)
 	s = strings.TrimPrefix(s, "{")

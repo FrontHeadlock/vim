@@ -45,7 +45,7 @@ cmd/* → game → {engine, store, platform}
 
 - **keys.go** — 키 토크나이저 (hjkl, f/t, 명령 파싱)
 
-- **editor_test.go** — 예제 기반 테스트 (`go test ./...` 로 현재 개수 확인)
+- 테스트는 전부 `test/engine/`(블랙박스, 공개 API 만 사용)에 있다
 
 **공개 API:**
 ```go
@@ -104,10 +104,11 @@ ParseKeys(s string) []Key
 - **snapshot.go** — 웹 렌더러용 데이터 계약
   - `Snapshot() map[string]any` — JS로 serialize 가능한 형식
 
-- **dom.go** — UI 동기화 헬퍼
-  - 한국어 명령 조회 (ex-command 힌트)
+- **levels_meta.go** — 표시 전용 데이터(제목·힌트·팔레트, !js)
+  - wasm 에 싣지 않는다: tools/genmeta 가 web/src/levels_meta.js 로 변환,
+    사이드패널은 JS(glue.js vqUpdatePanel)가 스냅샷+메타로 직접 그린다
 
-- **game_test.go** — 게임 규칙 테스트
+- 테스트는 전부 `test/game/`(블랙박스)에 있다
 
 **상태 변경 진입점:**
 ```go
@@ -146,7 +147,8 @@ ProgressFor(id string) store.LevelProgress
 - **store_other.go** — 데스크톱 구현 (`os.UserConfigDir()/vimquest/progress.txt`).
   `go test` 하에서는 `testing.Testing()` 으로 감지해 인메모리로 자동 대체 —
   헤드리스 테스트가 실제 저장 파일 상태에 의존하지 않는다.
-- **store_test.go**, **store_other_test.go** — 코덱·파일 저장 왕복 테스트
+- 테스트는 전부 `test/store/`(블랙박스)에 있다 — 코덱(Encode/DecodeProgress)은
+  localStorage/파일이 공유하는 직렬화 계약이라 공개 API 다
 
 **공개 API:**
 ```go
@@ -166,16 +168,14 @@ func New() Store  // 빌드 태그로 구현 선택
 
 **파일:**
 - **dom_js.go** — 웹 구현 (JS 호출)
-  - `SetText(id, text)` — HTML 요소 업데이트
-  - `SetHTML(id, html)` — HTML 설정
-  - `ShowOverlay(id)` — 모달 표시
+  - `ShowOverlay(id)` — 모달 표시 (:help)
+  - 사이드패널 텍스트 동기화는 더 이상 여기 없다 — JS(glue.js
+    vqUpdatePanel)가 스냅샷+LEVEL_META 로 직접 그린다
 
 - **dom_other.go** — 데스크톱 구현 (no-op)
 
 **공개 API:**
 ```go
-SetText(id, text string)
-SetHTML(id, html string)
 ShowOverlay(id string)
 Sfx(name string)  // "key", "bug", "blocked", "clear"
 ```

@@ -1,23 +1,28 @@
-package engine
+package enginetest
 
-import "testing"
+import (
+	"testing"
+
+	. "vimquest/internal/engine"
+)
 
 // checkInvariants 는 임의 입력 뒤에도 항상 성립해야 하는 Editor 불변식을
-// 검사한다(F3). 성질 자체(어떤 결과가 "옳은가")는 검증하지 않는다 — 그건
-// editor_test.go 의 예제 테스트 몫이고, 여기서는 "절대 깨지면 안 되는 것"만 본다.
+// 검사한다. 성질 자체(어떤 결과가 "옳은가")는 검증하지 않는다 — 그건
+// editor_test.go 의 예제 테스트 몫이고, 여기서는 "절대 깨지면 안 되는 것"만
+// 본다. 전부 공개 검사 API(LineCount/LineLen/Row/Col/UndoDepth)로 확인한다.
 func checkInvariants(t *testing.T, e *Editor) {
 	t.Helper()
-	if len(e.lines) == 0 {
+	if e.LineCount() == 0 {
 		t.Fatalf("버퍼에 줄이 0개 — 항상 최소 1줄이어야 한다")
 	}
-	if e.row < 0 || e.row >= len(e.lines) {
-		t.Fatalf("row=%d 범위 밖(lines=%d)", e.row, len(e.lines))
+	if e.Row() < 0 || e.Row() >= e.LineCount() {
+		t.Fatalf("row=%d 범위 밖(lines=%d)", e.Row(), e.LineCount())
 	}
-	if e.col < 0 || e.col > len(e.lines[e.row]) {
-		t.Fatalf("col=%d 범위 밖(현재 줄 길이=%d)", e.col, len(e.lines[e.row]))
+	if e.Col() < 0 || e.Col() > e.LineLen(e.Row()) {
+		t.Fatalf("col=%d 범위 밖(현재 줄 길이=%d)", e.Col(), e.LineLen(e.Row()))
 	}
-	if len(e.undo) > undoCap {
-		t.Fatalf("len(e.undo)=%d > undoCap=%d (B1 상한 위반)", len(e.undo), undoCap)
+	if e.UndoDepth() > UndoCap {
+		t.Fatalf("UndoDepth()=%d > UndoCap=%d (상한 위반)", e.UndoDepth(), UndoCap)
 	}
 }
 
@@ -61,7 +66,7 @@ func FuzzEditorNeverPanics(f *testing.F) {
 		for _, k := range ParseKeys(s) {
 			e.Feed(k)
 			checkInvariants(t, e)
-			if len(e.lines) > fuzzMaxLines || len(e.lines[e.row]) > fuzzMaxLineRunes {
+			if e.LineCount() > fuzzMaxLines || e.LineLen(e.Row()) > fuzzMaxLineRunes {
 				return
 			}
 		}

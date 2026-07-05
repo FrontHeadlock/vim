@@ -24,7 +24,7 @@ func (jsStore) Load() map[string]LevelProgress {
 	}
 	raw := ls.Call("getItem", storeKey)
 	if !raw.IsNull() && !raw.IsUndefined() {
-		return decodeProgress(raw.String())
+		return DecodeProgress(raw.String())
 	}
 
 	// v2 가 없다 — v1(구 JSON 포맷)이 아직 남아 있는지 폴백으로 확인한다.
@@ -32,9 +32,9 @@ func (jsStore) Load() map[string]LevelProgress {
 	if v1.IsNull() || v1.IsUndefined() {
 		return map[string]LevelProgress{}
 	}
-	m := decodeProgressV1JSON(v1.String())
+	m := DecodeProgressV1JSON(v1.String())
 	if len(m) > 0 {
-		ls.Call("setItem", storeKey, encodeProgress(m))
+		ls.Call("setItem", storeKey, EncodeProgress(m))
 		ls.Call("removeItem", legacyStoreKey)
 	}
 	return m
@@ -45,5 +45,5 @@ func (jsStore) Save(m map[string]LevelProgress) {
 	if ls.IsUndefined() {
 		return
 	}
-	ls.Call("setItem", storeKey, encodeProgress(m))
+	ls.Call("setItem", storeKey, EncodeProgress(m))
 }

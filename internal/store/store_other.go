@@ -27,6 +27,11 @@ func New() Store {
 	return &fileStore{path: filepath.Join(dir, "vimquest", "progress.txt")}
 }
 
+// NewFileStoreAt 은 지정 경로에 저장하는 파일 스토어를 만든다 — 테스트가
+// 임시 디렉토리를 주입해 Save→Load 왕복·손상 파일 내성을 검증하는 용도.
+// 프로덕션 경로 결정은 New() 가 한다.
+func NewFileStoreAt(path string) Store { return &fileStore{path: path} }
+
 // memStore 는 헤드리스 테스트용 인메모리 구현. 프로세스 생존 동안만 유지된다.
 type memStore struct{ data map[string]LevelProgress }
 
@@ -45,7 +50,7 @@ func (s *memStore) Save(m map[string]LevelProgress) {
 	}
 }
 
-// fileStore 는 데스크톱 빌드의 실제 영속화 구현. encodeProgress/decodeProgress
+// fileStore 는 데스크톱 빌드의 실제 영속화 구현. EncodeProgress/DecodeProgress
 // (store.go 의 수제 텍스트 코덱, 웹의 localStorage 구현과 공유)를 그대로 쓴다.
 type fileStore struct{ path string }
 
@@ -54,12 +59,12 @@ func (s *fileStore) Load() map[string]LevelProgress {
 	if err != nil {
 		return map[string]LevelProgress{} // 최초 실행/삭제됨/읽기 실패 — 빈 진행으로 시작
 	}
-	return decodeProgress(string(data))
+	return DecodeProgress(string(data))
 }
 
 func (s *fileStore) Save(m map[string]LevelProgress) {
 	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
 		return // 쓰기 실패는 조용히 무시 — 진행 저장 불가가 플레이를 막으면 안 됨
 	}
-	_ = os.WriteFile(s.path, []byte(encodeProgress(m)), 0o644)
+	_ = os.WriteFile(s.path, []byte(EncodeProgress(m)), 0o644)
 }

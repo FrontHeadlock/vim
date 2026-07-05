@@ -22,14 +22,14 @@ const (
 	drillCols = 20
 )
 
-// drillMaxRounds 는 한 :drill 세션에서 생성할 문제 수의 상한. 웹 빌드는
+// DrillMaxRounds 는 한 :drill 세션에서 생성할 문제 수의 상한. 웹 빌드는
 // 크기를 줄이려고 GC 를 꺼놨으므로(-gc=leaking, build.sh) 문제를 생성할
 // 때마다 나오는 자잘한 쓰레기(격자·Editor·해 문자열)가 세션 내내 전혀
 // 회수되지 않는다 — 정확히 "반복 연습"이라는 이 기능의 용도에서 무한정
 // 늘어날 수 있다는 뜻이라, 라운드 수에 상한을 둬 최악의 경우 메모리 증가를
 // 유한하게 묶는다. 이 값(대략 문제당 수 KB 기준 총 수 MB)은 실제 연습
 // 세션에선 거의 도달하지 않을 만큼 넉넉하다.
-const drillMaxRounds = 1000
+const DrillMaxRounds = 1000
 
 // enterDrill 은 :drill 모드로 전환하고 kind 에 맞는 생성기로 첫 문제를 만든다.
 // kind: ""(기본, hjkl) · "w"(단어 점프) · "f"(find 배치) · "x"(버그 소탕).
@@ -54,11 +54,18 @@ func (g *Game) advanceDrill() {
 	g.drillTotalKeys += g.strokes
 	g.drillTotalPar += g.Par()
 	platform.Sfx("clear")
-	if g.drillStreak >= drillMaxRounds {
+	if g.drillStreak >= DrillMaxRounds {
 		g.EnterLevelSelect()
 		return
 	}
 	g.loadLevelData(generateDrillFor(g.drillKind, g.drillRng))
+}
+
+// GenerateDrillLevel 은 kind("", "w", "f", "x")에 맞는 드릴 생성기로 문제
+// 하나를 만든다 — 시드 고정 rng 를 주입해 property 테스트(생성 문제가 항상
+// 자신의 Solution 으로 풀리는지)를 재현 가능하게 돌리기 위한 공개 진입점.
+func GenerateDrillLevel(kind string, rng *rand.Rand) Level {
+	return generateDrillFor(kind, rng)
 }
 
 // generateDrillFor 는 kind 에 맞는 생성기로 분기한다(B2).

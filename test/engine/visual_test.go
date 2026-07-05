@@ -1,6 +1,10 @@
-package engine
+package enginetest
 
-import "testing"
+import (
+	"testing"
+
+	. "vimquest/internal/engine"
+)
 
 // TestVisualCountMotion 은 비주얼 모드에서 count 접두 모션(예: 3l)이 count
 // 번 반복되는지 확인한다(비주얼 모드가 count 를 무시하면 "3l" 이 한 칸만

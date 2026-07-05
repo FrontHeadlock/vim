@@ -48,6 +48,21 @@ func (e *Editor) SetCell(row, col int, r rune) {
 	e.lines[row][col] = r
 }
 
+// LineCount 는 버퍼의 줄 수. Lines() 와 달리 복사 없이 크기만 알려준다
+// (테스트 하네스·fuzz 불변식 검사처럼 매 키마다 조회하는 소비자용).
+func (e *Editor) LineCount() int { return len(e.lines) }
+
+// LineLen 은 row 줄의 rune 수. 범위 밖이면 0.
+func (e *Editor) LineLen(row int) int {
+	if row < 0 || row >= len(e.lines) {
+		return 0
+	}
+	return len(e.lines[row])
+}
+
+// UndoDepth 는 undo 스택 깊이 — 항상 UndoCap 이하다(불변식 검사용).
+func (e *Editor) UndoDepth() int { return len(e.undo) }
+
 // Mode 는 현재 편집 모드(Normal/Insert/Visual/VisualLine).
 func (e *Editor) Mode() Mode { return e.mode }
 

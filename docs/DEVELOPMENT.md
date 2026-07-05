@@ -43,32 +43,36 @@ tinygo version
 │   └── web/             TinyGo WASM 진입점
 │       └── main.go
 ├── internal/
-│   ├── engine/          Vim 편집 엔진 (순수 로직)
-│   │   ├── editor.go
-│   │   ├── keys.go
-│   │   └── editor_test.go
+│   ├── engine/          Vim 편집 엔진 (순수 로직, 파일별 책임 분할)
+│   │   ├── editor.go    (타입·Feed 디스패치)
+│   │   ├── normal.go / motion.go / operator.go / ...
+│   │   └── keys.go
 │   ├── game/            게임 규칙 & 상태 머신
 │   │   ├── game.go
 │   │   ├── effects.go
 │   │   ├── drill.go
-│   │   ├── levels.go
+│   │   ├── levels.go        (규칙 데이터: Map/Target/Solution)
+│   │   ├── levels_meta.go   (표시 데이터: 제목·힌트·팔레트 — !js, wasm 제외)
 │   │   ├── view.go      (데스크톱 렌더러 접근자)
-│   │   ├── snapshot.go  (웹 렌더러 계약)
-│   │   ├── dom.go
-│   │   └── game_test.go
+│   │   └── snapshot.go  (웹 렌더러 계약)
 │   ├── store/           진행 저장
 │   │   ├── store.go
 │   │   ├── store_js.go
-│   │   ├── store_other.go
-│   │   └── store_test.go
+│   │   └── store_other.go
 │   ├── platform/        DOM/SFX 브리지
 │   │   ├── dom_js.go
 │   │   └── dom_other.go
 │   └── jsbridge/        JS ↔ Go 연결부
 │       └── bridge.go
+├── test/                모든 테스트(블랙박스 — 공개 API 만 사용)
+│   ├── engine/          (+ fuzz 코퍼스 testdata/)
+│   ├── game/
+│   └── store/
+├── tools/genmeta/       levels_meta.go → levels_meta.js 생성기
 ├── web/
 │   ├── src/             (소스 코드)
 │   │   ├── index.html
+│   │   ├── levels_meta.js   (생성 파일 — 커리큘럼 표시 데이터)
 │   │   ├── renderer.js
 │   │   └── glue.js
 │   └── dist/            (빌드 산출물)
@@ -139,9 +143,9 @@ go test ./...
 
 ### 특정 패키지 테스트
 ```bash
-go test ./internal/engine -v
-go test ./internal/game -v
-go test ./internal/store -v
+go test ./test/engine -v
+go test ./test/game -v
+go test ./test/store -v
 ```
 
 ### 테스트 커버리지
@@ -151,7 +155,7 @@ go test ./... -cover
 
 ### 특정 테스트만 실행
 ```bash
-go test ./internal/engine -run TestMotion -v
+go test ./test/engine -run TestMotion -v
 ```
 
 ---
@@ -405,7 +409,7 @@ make build
 2. 테스트 추가 (`editor_test.go`)
 3. 빌드 & 테스트:
 ```bash
-go test ./internal/engine -v
+go test ./test/engine -v
 make build
 ```
 
@@ -415,7 +419,7 @@ make build
 2. `internal/game/game_test.go`에 테스트 추가
 3. 빌드 & 테스트:
 ```bash
-go test ./internal/game -v
+go test ./test/game -v
 make build
 ```
 
