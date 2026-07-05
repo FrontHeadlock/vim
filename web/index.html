@@ -4,6 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>VimQuest — Learn Vim by Playing</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%231e202a'/%3E%3Crect x='2' y='3' width='9' height='2' fill='%235fd07b'/%3E%3Crect x='2' y='7' width='6' height='2' fill='%235fd07b'/%3E%3Crect x='2' y='11' width='3' height='2' fill='%23f6d84f'/%3E%3C/svg%3E" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
@@ -25,7 +26,7 @@
     display:flex; flex-direction:column; align-items:center; min-height:100vh;
     image-rendering:pixelated; -webkit-font-smoothing:none; font-smooth:never;
   }
-  /* CRT scanlines (lighter so panels stay readable) + vignette */
+  /* CRT scanlines (lighter so panels stay readable) + vignette — toggle via body.crt-off */
   body::before{
     content:""; position:fixed; inset:0; z-index:9999; pointer-events:none;
     background:repeating-linear-gradient(0deg, rgba(0,0,0,.10) 0 1px, transparent 1px 3px);
@@ -35,6 +36,7 @@
     content:""; position:fixed; inset:0; z-index:9998; pointer-events:none;
     box-shadow:inset 0 0 150px rgba(0,0,0,.5);
   }
+  body.crt-off::before, body.crt-off::after{ content:none; }
 
   .blink{ animation:blink 1.05s steps(1) infinite; }
   @keyframes blink{ 50%{ opacity:0; } }
@@ -239,7 +241,7 @@
         </div>
 
         <div class="startwrap">
-          <button class="btn g start" onclick="document.getElementById('intro').classList.add('hidden')">▶ START GAME</button>
+          <button class="btn g start" onclick="initAudio(); document.getElementById('intro').classList.add('hidden')">▶ START GAME</button>
           <p class="warn" id="intro-warn">⚠ Keys work only in English input mode (check your 한/영 key)</p>
         </div>
       </div>
@@ -268,6 +270,8 @@
         <button class="btn" onclick="window.vimquestLevelSelect && window.vimquestLevelSelect()">▤ LEVELS</button>
         <button class="btn" onclick="document.getElementById('intro').classList.remove('hidden')">📖 MANUAL</button>
         <button class="btn y" onclick="document.getElementById('cheatsheet').classList.add('show')">📜 CHEATSHEET</button>
+        <button class="btn" id="mute-btn" onclick="toggleMute()">🔊 SOUND</button>
+        <button class="btn" id="crt-btn" onclick="toggleCrt()">▤ CRT ON</button>
       </div>
     </div>
   </div>
@@ -283,9 +287,12 @@
 
   <div id="cheatsheet" class="overlay" onclick="this.classList.remove('show')">
     <div class="win" onclick="event.stopPropagation()">
-      <div class="winbar"><span class="t">CHEATSHEET.txt</span><span class="r">esc to close</span></div>
+      <div class="winbar">
+        <span class="t">CHEATSHEET.txt</span>
+        <span><button class="btn sm" id="cheat-lang-btn" onclick="event.stopPropagation(); toggleCheatLang()">한국어</button> <span class="r">esc to close</span></span>
+      </div>
       <div class="winbody">
-      <table>
+      <table id="cheat-en">
         <tr><td class="grp" colspan="2">MOVE</td></tr>
         <tr><td>h j k l</td><td>left / down / up / right one cell</td></tr>
         <tr><td>w b e</td><td>next word / prev word / end of word</td></tr>
@@ -305,6 +312,37 @@
         <tr><td>yy p P</td><td>copy line / paste below·above</td></tr>
         <tr><td>v V</td><td>visual select → d y c</td></tr>
         <tr><td>u Ctrl-r .</td><td>undo / redo / repeat last change</td></tr>
+        <tr><td class="grp" colspan="2">SEARCH &amp; COMMAND-LINE</td></tr>
+        <tr><td>/ ?</td><td>search forward / backward</td></tr>
+        <tr><td>n N</td><td>repeat search (same / opposite direction)</td></tr>
+        <tr><td>:q :restart</td><td>level select / restart level</td></tr>
+        <tr><td>:{N} :help</td><td>jump to line N / reopen manual</td></tr>
+      </table>
+      <table id="cheat-ko" style="display:none">
+        <tr><td class="grp" colspan="2">이동</td></tr>
+        <tr><td>h j k l</td><td>왼쪽 / 아래 / 위 / 오른쪽 한 칸</td></tr>
+        <tr><td>w b e</td><td>다음 단어 / 이전 단어 / 단어 끝</td></tr>
+        <tr><td>0 ^ $</td><td>줄 시작 / 첫 글자 / 줄 끝</td></tr>
+        <tr><td>f{x} t{x}</td><td>x로 점프 / x 직전까지 ( ; , 로 반복 )</td></tr>
+        <tr><td>gg G 3G</td><td>첫 줄 / 마지막 줄 / 3번째 줄</td></tr>
+        <tr><td class="grp" colspan="2">편집 (연산자 + 모션)</td></tr>
+        <tr><td>d c y</td><td>삭제 / 바꾸기 / 복사 — + 모션·객체</td></tr>
+        <tr><td>dw d$ dd</td><td>단어 / 줄끝까지 / 줄 전체</td></tr>
+        <tr><td>cw cc</td><td>단어 바꾸기 / 줄 바꾸고 입력</td></tr>
+        <tr><td>x ~ r{z}</td><td>글자 삭제 / 대소문자 전환 / z로 교체</td></tr>
+        <tr><td class="grp" colspan="2">텍스트 객체 (i=안쪽, a=바깥쪽 포함)</td></tr>
+        <tr><td>diw daw</td><td>단어 삭제 (공백 포함 = aw)</td></tr>
+        <tr><td>ci( ci" ci{</td><td>( ) " " { } 안쪽 바꾸기</td></tr>
+        <tr><td class="grp" colspan="2">입력 · 복사 · 기타</td></tr>
+        <tr><td>i a o O A I</td><td>입력 모드 진입 ( Esc 로 나가기 )</td></tr>
+        <tr><td>yy p P</td><td>줄 복사 / 아래·위 붙여넣기</td></tr>
+        <tr><td>v V</td><td>비주얼 선택 → d y c</td></tr>
+        <tr><td>u Ctrl-r .</td><td>되돌리기 / 다시실행 / 마지막 변경 반복</td></tr>
+        <tr><td class="grp" colspan="2">검색 &amp; 명령줄</td></tr>
+        <tr><td>/ ?</td><td>앞으로 / 뒤로 검색</td></tr>
+        <tr><td>n N</td><td>검색 반복 ( 같은 / 반대 방향 )</td></tr>
+        <tr><td>:q :restart</td><td>레벨 선택 / 레벨 재시작</td></tr>
+        <tr><td>:{N} :help</td><td>N번째 줄로 이동 / 매뉴얼 다시 열기</td></tr>
       </table>
       <div class="foot">Click outside or press <kbd>Ctrl</kbd>+<kbd>/</kbd> to close</div>
       </div>
@@ -328,6 +366,25 @@
       : '⚠ Keys work only in English input mode (check your 한/영 key)';
   }
 
+  // KO/EN cheatsheet toggle — independent from the manual's language state,
+  // so switching one doesn't surprise-flip the other.
+  function toggleCheatLang(){
+    const en = document.getElementById('cheat-en');
+    const ko = document.getElementById('cheat-ko');
+    const btn = document.getElementById('cheat-lang-btn');
+    const showKo = en.style.display !== 'none';
+    en.style.display = showKo ? 'none' : '';
+    ko.style.display = showKo ? '' : 'none';
+    btn.textContent = showKo ? 'English' : '한국어';
+  }
+
+  // CRT scanline/vignette overlay toggle (default on, matches shipped look)
+  function toggleCrt(){
+    document.body.classList.toggle('crt-off');
+    const off = document.body.classList.contains('crt-off');
+    document.getElementById('crt-btn').textContent = off ? '▭ CRT OFF' : '▤ CRT ON';
+  }
+
   // Hangul IME detection
   const imeWarn = document.getElementById('ime-warning');
   function isHangul(key){ return /[㄰-㆏가-힣]/.test(key); }
@@ -341,6 +398,86 @@
     if (e.ctrlKey && e.key === '/'){ e.preventDefault(); sheet.classList.toggle('show'); }
     if (e.key === 'Escape' && sheet.classList.contains('show')) sheet.classList.remove('show');
   });
+
+  // chiptune SFX — inline square-wave synth, no audio assets.
+  // AudioContext must be created from a user gesture (the START GAME click).
+  let audioCtx = null;
+  let muted = false;
+
+  function initAudio(){
+    if (audioCtx) return;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (AC) audioCtx = new AC();
+  }
+
+  function toggleMute(){
+    muted = !muted;
+    document.getElementById('mute-btn').textContent = muted ? '🔇 MUTED' : '🔊 SOUND';
+  }
+
+  // name: "key" | "bug" | "blocked" | "clear"
+  function playSfx(name){
+    if (muted || !audioCtx) return;
+    const presets = {
+      key:     [[880, 0.06]],
+      bug:     [[220, 0.05]],
+      blocked: [[110, 0.08]],
+      clear:   [[660, 0.08], [880, 0.08], [1320, 0.10]],
+    };
+    const notes = presets[name];
+    if (!notes) return;
+    let t = audioCtx.currentTime;
+    for (const [freq, dur] of notes){
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'square';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.15, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(t);
+      osc.stop(t + dur);
+      t += dur;
+    }
+  }
+  window.vimquestSfx = playSfx;
+
+  // typewriter hint effect — old-terminal character-by-character output.
+  // Precondition: domSet() on the Go side must dedupe (skip when the value is
+  // unchanged), otherwise syncDOM() rewriting the same text every frame would
+  // reset the typewriter mid-animation, forever.
+  (function setupTypewriter(){
+    const hintEl = document.getElementById('hint');
+    let typing = false;
+    let lastText = hintEl.textContent;
+
+    const observer = new MutationObserver(() => {
+      if (typing) return;
+      const newText = hintEl.textContent;
+      if (newText === lastText) return;
+      lastText = newText;
+      typeOut(newText);
+    });
+
+    function typeOut(text){
+      typing = true;
+      observer.disconnect();
+      hintEl.textContent = '';
+      let i = 0;
+      const iv = setInterval(() => {
+        hintEl.textContent += text[i] || '';
+        i++;
+        if (i >= text.length){
+          clearInterval(iv);
+          typing = false;
+          lastText = hintEl.textContent;
+          observer.observe(hintEl, { childList: true, characterData: true, subtree: true });
+        }
+      }, 18);
+    }
+
+    observer.observe(hintEl, { childList: true, characterData: true, subtree: true });
+  })();
 
   // load WASM
   const go = new Go();

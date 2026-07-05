@@ -2,6 +2,7 @@ package main
 
 import (
 	"image/color"
+	"strconv"
 	"strings"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -79,6 +80,66 @@ type Game struct {
 
 	store    ProgressStore
 	progress map[string]LevelProgress
+
+	// 터미널식 피드백(2.2): 문자 치환/반전 연출
+	effects []Effect
+	bellTTL int // > 0 이면 이번 프레임 visual bell(막힌 키) 발동 중
+
+	// : ex-command 라인(2.3)
+	exMode bool
+	exBuf  []rune
+}
+
+// Effect 는 몇 프레임 동안 표시되는 터미널식 문자 치환/반전 연출 한 건.
+// 실제 버퍼 내용은 바꾸지 않고 렌더링에서만 겹쳐 그린다.
+type Effect struct {
+	Row, Col int
+	Glyph    rune // 0 이면 문자 치환 없음(Invert 만 적용)
+	Invert   bool
+	TTL      int // 남은 프레임 수
+}
+
+// fireEvent 는 게임 이벤트(열쇠 획득/버그 처치/막힌 키/레벨 클리어)를
+// 사운드(jsSfx)와 화면 연출(spawnEffect) 양쪽에 동시에 통지한다.
+func (g *Game) fireEvent(name string, row, col int) {
+	jsSfx(name)
+	g.spawnEffect(name, row, col)
+}
+
+func (g *Game) spawnEffect(name string, row, col int) {
+	switch name {
+	case "bug":
+		g.effects = append(g.effects, Effect{Row: row, Col: col, Glyph: 'x', TTL: 10})
+	case "key":
+		g.effects = append(g.effects, Effect{Row: row, Col: col, Invert: true, TTL: 6})
+	case "blocked":
+		g.bellTTL = 2
+	}
+}
+
+// tickEffects 는 매 프레임 이펙트 TTL 을 줄이고 만료된 것을 정리한다.
+func (g *Game) tickEffects() {
+	if g.bellTTL > 0 {
+		g.bellTTL--
+	}
+	live := g.effects[:0]
+	for _, e := range g.effects {
+		e.TTL--
+		if e.TTL > 0 {
+			live = append(live, e)
+		}
+	}
+	g.effects = live
+}
+
+// effectAt 은 (r,c) 에 걸린 활성 이펙트를 돌려준다(없으면 ok=false).
+func (g *Game) effectAt(r, c int) (Effect, bool) {
+	for _, e := range g.effects {
+		if e.Row == r && e.Col == c {
+			return e, true
+		}
+	}
+	return Effect{}, false
 }
 
 func NewGame() *Game {
@@ -101,6 +162,10 @@ func (g *Game) loadLevel(idx int) {
 	g.keysNeed = 0
 	g.strokes = 0
 	g.state = statePlaying
+	g.effects = nil
+	g.bellTTL = 0
+	g.exMode = false
+	g.exBuf = nil
 
 	if g.lv.Kind == "navigate" {
 		lines := make([]string, len(g.lv.Map))
@@ -157,10 +222,68 @@ func navigateAllows(e *Editor, k Key) bool {
 
 func (g *Game) feed(k Key) {
 	g.strokes++
+	if g.exMode {
+		g.feedEx(k)
+		return
+	}
+	if k.R == ':' && g.ed.mode == ModeNormal && g.ed.isCmdStart() && !g.ed.searching {
+		g.exMode = true
+		g.exBuf = nil
+		return
+	}
+	wasBug := g.lv.Kind == "navigate" && k.R == 'x' && g.cellAt(g.ed.row, g.ed.col) == '*'
 	if g.lv.Kind == "navigate" && !navigateAllows(g.ed, k) {
+		g.fireEvent("blocked", g.ed.row, g.ed.col)
 		return
 	}
 	g.ed.Feed(k)
+	if wasBug {
+		g.fireEvent("bug", g.ed.row, g.ed.col)
+	}
+}
+
+// feedEx 는 ":" 명령줄 입력을 처리하는 Game 레벨 pseudo-mode.
+// 검색(1.4)과 같은 골격(bool 플래그 + 버퍼 + esc/cr/bs)을 재사용하되,
+// :q/:restart 처럼 Editor 밖의 Game 상태를 조작해야 해서 Editor가 아닌
+// Game에 둔다.
+func (g *Game) feedEx(k Key) {
+	switch k.S {
+	case "esc":
+		g.exMode = false
+		g.exBuf = nil
+		return
+	case "cr":
+		cmd := string(g.exBuf)
+		g.exMode = false
+		g.exBuf = nil
+		g.runExCommand(cmd)
+		return
+	case "bs":
+		if len(g.exBuf) > 0 {
+			g.exBuf = g.exBuf[:len(g.exBuf)-1]
+		}
+		return
+	}
+	if k.R != 0 {
+		g.exBuf = append(g.exBuf, k.R)
+	}
+}
+
+// runExCommand 는 확정된 ex-command 문자열을 해석해 실행한다.
+// 인식하지 못한 명령은 조용히 무시한다(터미널처럼 무반응 — 에러 팝업 없음).
+func (g *Game) runExCommand(cmd string) {
+	switch {
+	case cmd == "q" || cmd == "levels":
+		g.enterLevelSelect()
+	case cmd == "restart" || cmd == "e!":
+		g.loadLevel(g.levelIdx)
+	case cmd == "help":
+		domShow("intro")
+	default:
+		if n, err := strconv.Atoi(cmd); err == nil && n > 0 {
+			g.ed.gotoLine(n)
+		}
+	}
 }
 
 // currentPar 는 현재 레벨의 검증된 Solution 기준 타수(par)를 반환한다.
@@ -262,6 +385,7 @@ func (g *Game) updatePlaying() error {
 	}
 
 	g.checkWin()
+	g.tickEffects()
 	g.syncDOM()
 	return nil
 }
@@ -363,7 +487,10 @@ func worldGroups() [][]int {
 func (g *Game) checkWin() {
 	if g.lv.Kind == "navigate" {
 		pos := [2]int{g.ed.row, g.ed.col}
-		delete(g.keyPos, pos) // 열쇠 위로 오면 획득
+		if g.keyPos[pos] {
+			delete(g.keyPos, pos) // 열쇠 위로 오면 획득
+			g.fireEvent("key", pos[0], pos[1])
+		}
 		cell := g.cellAt(g.ed.row, g.ed.col)
 		if len(g.keyPos) == 0 && g.pestsLeft() == 0 && cell == '$' {
 			g.advance()
@@ -391,6 +518,7 @@ func (g *Game) advance() {
 	g.clearPar = g.currentPar()
 	g.clearStars = stars(g.strokes, g.clearPar)
 	g.clearBest = g.recordClear()
+	jsSfx("clear")
 
 	if g.levelIdx+1 < len(levels) {
 		g.state = stateLevelClear
@@ -453,14 +581,27 @@ func (g *Game) drawPlaying(screen *ebiten.Image) {
 		drawRect(screen, 510, float64(originY-10), 2, 300, colFloor)
 	}
 
-	// 하단 상태바: 모드 + 입력중 명령 + 마지막 키 + par 진행도
-	bar := g.ed.ModeName()
-	if g.ed.pendingStr != "" {
-		bar += "   cmd: " + g.ed.pendingStr
+	// 하단 상태바: ex-command 입력 중이면 명령줄로 대체, 아니면 모드+명령+par
+	var bar string
+	if g.exMode {
+		bar = ":" + string(g.exBuf)
+	} else {
+		bar = g.ed.ModeName()
+		if g.ed.pendingStr != "" {
+			bar += "   cmd: " + g.ed.pendingStr
+		}
+		bar += "   last: " + g.ed.lastKey
+		bar += "   keys " + itoa(g.strokes) + " / par " + itoa(g.currentPar())
 	}
-	bar += "   last: " + g.ed.lastKey
-	bar += "   keys " + itoa(g.strokes) + " / par " + itoa(g.currentPar())
-	drawChar(screen, bar, 60, screenH-46, colText)
+
+	// visual bell: 막힌 키 입력 시 1~2프레임 상태바를 반전(실제 Vim의 visualbell 어법)
+	barY := screenH - 46
+	if g.bellTTL > 0 {
+		drawRect(screen, 40, float64(barY-6), screenW-80, 32, colText)
+		drawChar(screen, bar, 60, float64(barY), colBG)
+	} else {
+		drawChar(screen, bar, 60, float64(barY), colText)
+	}
 }
 
 // drawLevelClear 는 레벨 클리어 요약 화면을 렌더한다.
@@ -542,10 +683,25 @@ func (g *Game) drawBuffer(screen *ebiten.Image, lines []string, ox, oy int, with
 				}
 				drawRect(screen, px-1, py-2, charW, lineH-4, cc)
 			}
-			if ch == ' ' {
+
+			// 터미널식 피드백(2.2): 문자 치환/반전 — 실제 버퍼는 건드리지 않고 겹쳐 그린다
+			displayCh := ch
+			displayCol := cellColor(ch, g, r, c)
+			if eff, ok := g.effectAt(r, c); ok {
+				if eff.Invert {
+					drawRect(screen, px-1, py-2, charW, lineH-4, colText)
+					displayCol = colBG
+				}
+				if eff.Glyph != 0 {
+					displayCh = eff.Glyph
+					displayCol = colPest // 처치 연출은 버그 색(빨강)으로 뚜렷하게
+				}
+			}
+
+			if displayCh == ' ' {
 				continue
 			}
-			drawChar(screen, string(ch), px, py, cellColor(ch, g, r, c))
+			drawChar(screen, string(displayCh), px, py, displayCol)
 		}
 		// 빈 줄에서 커서/매치 표시
 		if withCursor && r == g.ed.row && g.ed.col >= len(runes) {
