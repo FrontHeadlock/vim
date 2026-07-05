@@ -5,15 +5,32 @@ on:
     branches: [main]
   pull_request:
 
+# 같은 ref 에 새 푸시가 오면 진행 중인 이전 실행을 취소한다 — 밀린 커밋마다
+# 전부 완주시키는 낭비 방지. 어차피 게이트는 최신 커밋에 대해서만 의미 있다.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# 이 워크플로는 코드를 읽고 아티팩트만 올린다 — 쓰기 권한 불필요(최소 권한).
+permissions:
+  contents: read
+
 jobs:
   go:
     name: Go test / vet / fmt / fuzz
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
         with:
           go-version: "1.26"
+      # Ebiten(cmd/desktop)이 Linux 에서 cgo 로 X11/OpenGL/ALSA 헤더를 요구한다 —
+      # 없으면 go vet/test 가 "X11/Xlib.h: No such file" 로 컴파일 단계에서 죽는다.
+      - name: install Ebiten build deps (X11/GL/ALSA)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1-mesa-dev xorg-dev libasound2-dev pkg-config
       - name: gofmt
         run: |
           fmt_out="$(gofmt -l .)"
@@ -24,44 +41,63 @@ jobs:
           fi
       - name: go vet
         run: go vet ./...
-      - name: go test
-        run: go test ./...
-      - name: fuzz smoke (엔진 불변식, F3)
+      # -race: 데이터 레이스 검출(현재 고루틴이 거의 없지만, 생기는 순간부터 게이트).
+      # -shuffle=on: 테스트 실행 순서를 무작위화해 테스트 간 전역 상태 의존
+      # (예: 패키지 전역 카운터 리셋 누락)을 드러낸다. 실패 시 로그의
+      # -test.shuffle 시드로 그 순서를 재현할 수 있다.
+      - name: go test (race + shuffle)
+        run: go test -race -shuffle=on ./...
+      # fuzz 코퍼스를 실행 간에 누적한다 — 키가 run_id 라 항상 새로 저장되고,
+      # restore-keys 프리픽스 매치로 직전 실행의 코퍼스에서 이어서 탐색한다.
+      # 20초짜리 스모크라도 회를 거듭할수록 커버리지가 깊어진다.
+      - name: fuzz corpus cache (실행 간 누적)
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/go-build/fuzz
+          key: fuzz-corpus-${{ github.run_id }}
+          restore-keys: |
+            fuzz-corpus-
+      - name: fuzz smoke (엔진 불변식)
         run: go test ./internal/engine/... -run '^$' -fuzz FuzzEditorNeverPanics -fuzztime 20s
 
   web-build:
     name: TinyGo web build + 크기 예산 게이트
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
         with:
           go-version: "1.26"
+      # TinyGo 버전은 지원하는 Go 버전과 짝을 맞춰야 한다: 0.34 는 Go 1.23 까지만
+      # 지원해 setup-go 의 1.26 과 만나면 "requires go version 1.19 through 1.23" 으로
+      # 즉사한다. 0.41.1 은 로컬 개발 환경과 동일한 버전(Go 1.26 지원).
       - name: install TinyGo
         run: |
-          wget -q https://github.com/tinygo-org/tinygo/releases/download/v0.34.0/tinygo_0.34.0_amd64.deb
-          sudo dpkg -i tinygo_0.34.0_amd64.deb
+          wget -q https://github.com/tinygo-org/tinygo/releases/download/v0.41.1/tinygo_0.41.1_amd64.deb
+          sudo dpkg -i tinygo_0.41.1_amd64.deb
           echo "/usr/local/tinygo/bin" >> "$GITHUB_PATH"
       - name: build-web (scripts/build.sh — 크기 예산 게이트 포함, 여기서 재구현하지 않음)
         run: ./scripts/build.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: web-dist
           path: web/dist/
 
   e2e:
-    name: Playwright 스모크 (브라우저→wasm 브리지, F4)
+    name: Playwright 스모크 (브라우저→wasm 브리지)
     runs-on: ubuntu-latest
     needs: web-build
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           name: web-dist
           path: web/dist/
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version: "22"
       - name: npm ci
         working-directory: web/e2e
         run: npm ci
@@ -71,7 +107,7 @@ jobs:
       - name: playwright test
         working-directory: web/e2e
         run: npx playwright test
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: playwright-report

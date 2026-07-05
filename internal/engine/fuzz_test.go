@@ -43,11 +43,27 @@ func FuzzEditorNeverPanics(f *testing.F) {
 		f.Add(s)
 	}
 	buf := []string{"hello world", "foo(bar, baz)", "line one", "  indented", ""}
+	// 성장 상한. yank→paste 반복은 버퍼를 기하급수적으로 불릴 수 있고("VGyp"
+	// 반복 = 줄 수 2배, "y$p" 반복 = 한 줄 길이 2배), pushUndo 가 커맨드마다
+	// 버퍼 전체를 복제하므로 버퍼가 커진 뒤엔 키 하나가 수 초까지 느려진다.
+	// 느린 CI 러너에서 -fuzztime 마감 시점에 그런 입력을 물고 있으면 크래시
+	// 없이도 "context deadline exceeded" 로 FAIL 한다(실제 발생). 큰 버퍼가
+	// 패닉 불변식 검사에 새 정보를 주지는 않으므로, 상한에 닿으면 그 입력은
+	// 거기서 통과 처리한다. paste 는 count 를 받지 않아 커맨드 1회 비용은
+	// 유한하고, 성장은 키 사이에서만 누적된다 — 키마다 검사하면 충분하다.
+	// 두 성장 경로(줄 수·현재 줄 길이) 모두 커서 줄에서 일어나므로 O(1) 검사.
+	const fuzzMaxLines, fuzzMaxLineRunes = 2000, 1 << 16
 	f.Fuzz(func(t *testing.T, s string) {
+		if len(s) > 4096 {
+			return // 키 개수도 유계로 — 불변식 탐색에 이 이상은 불필요
+		}
 		e := NewEditor(append([]string(nil), buf...))
 		for _, k := range ParseKeys(s) {
 			e.Feed(k)
 			checkInvariants(t, e)
+			if len(e.lines) > fuzzMaxLines || len(e.lines[e.row]) > fuzzMaxLineRunes {
+				return
+			}
 		}
 	})
 }
