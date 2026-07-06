@@ -71,6 +71,49 @@ function vqApplyLang() {
 function vqToggleLang() {
   vqLang = vqLang === 'en' ? 'ko' : 'en';
   vqApplyLang();
+  vqRefreshOnboardingText();
+}
+
+// ── 신규 세션 온보딩 프롬프트 ─────────────────────────────────────────
+// migrateProgress()(이 파일 맨 위)가 이미 쓰는 'vimquest.v1'/'vimquest.v2'
+// 판별 로직을 그대로 재사용한다 — 새 API 나 game/snapshot.go 계약 변경
+// 없이, 저장된 진행이 전혀 없으면 "신규 세션"으로 본다. 상태바 위에 한 줄
+// 텍스트만 추가/제거한다(박스·화살표·애니메이션 없음 — 터미널 어법 유지).
+let vqOnboardingKeysLeft = 0; // 0 이면 비활성(신규 세션이 아니거나 이미 소진)
+
+function vqOnboardingText() {
+  return vqLang === 'ko'
+    ? '팁: j 를 눌러 아래로 이동해 보세요'
+    : 'tip: press j to move down';
+}
+
+function vqShowOnboardingIfNewSession() {
+  const seen = localStorage.getItem('vimquest.v1') || localStorage.getItem('vimquest.v2');
+  if (seen) return;
+  vqOnboardingKeysLeft = 3;
+  const el = document.getElementById('onboarding-tip');
+  if (el) {
+    el.textContent = vqOnboardingText();
+    el.style.display = '';
+  }
+}
+
+// 언어 토글 중에도 문구가 즉시 반영되도록 vqToggleLang 이 호출한다.
+function vqRefreshOnboardingText() {
+  if (vqOnboardingKeysLeft <= 0) return;
+  const el = document.getElementById('onboarding-tip');
+  if (el) el.textContent = vqOnboardingText();
+}
+
+// vqNoteOnboardingKey 는 키 입력마다(게임이 그 키를 받아들였는지와 무관하게)
+// 독립적으로 카운트한다 — 3번째 키에서 프롬프트를 지운다.
+function vqNoteOnboardingKey() {
+  if (vqOnboardingKeysLeft <= 0) return;
+  vqOnboardingKeysLeft--;
+  if (vqOnboardingKeysLeft <= 0) {
+    const el = document.getElementById('onboarding-tip');
+    if (el) el.style.display = 'none';
+  }
 }
 
 // vqDraw 는 렌더러에 그리는 동시에 vqLastState 갱신·사이드패널 동기화까지
@@ -229,6 +272,10 @@ function vqHandleKey(e) {
   else if (e.key.length === 1) tok = e.key;
   else return;
 
+  // 게임(vqInput)이 아직 준비되기 전이라도 "실제로 입력된 키"로 센다 —
+  // 온보딩 카운트는 게임 로직/엔진 준비 상태에 기대지 않는 순수 JS 카운트다.
+  vqNoteOnboardingKey();
+
   if (!vqRenderer) {
     console.error('vqRenderer not initialized');
     return;
@@ -255,6 +302,7 @@ function vqInit() {
   vqRenderer = new Renderer(canvas);
   document.addEventListener('keydown', vqHandleKey);
   canvas.focus();
+  vqShowOnboardingIfNewSession();
   const st = vqState();
   vqDraw(st);
   if (st.effectsAlive) vqStartTick();

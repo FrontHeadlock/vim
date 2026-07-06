@@ -78,6 +78,9 @@
   #level-title{ color:var(--yellow); font-size:23px; }
   #hint{ margin-top:8px; font-size:19px; line-height:1.4; color:var(--text); }
   #status{ margin-top:8px; font-size:18px; color:var(--green); min-height:20px; }
+  /* 신규 세션 온보딩 — 순수 텍스트 한 줄, 박스/애니메이션 없음(터미널 어법). */
+  #onboarding-tip{ margin-top:8px; font-size:17px; color:var(--cyan); }
+  #onboarding-tip::before{ content:"› "; }
   #controls{ margin-top:14px; display:flex; gap:8px; flex-wrap:wrap; }
 
   /* ── game canvas frame ── */
@@ -272,6 +275,7 @@
     <div class="winbody">
       <div id="level-title">Loading…</div>
       <div id="hint">Please wait.</div>
+      <div id="onboarding-tip" style="display:none;"></div>
       <div id="status"></div>
       <div id="controls">
         <button class="btn" onclick="vqCallAndDraw(window.vimquestReset)">↺ RESET</button>
