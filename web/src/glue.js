@@ -97,6 +97,12 @@ function vqUpdatePanel(st) {
       vqSetText('status', '');
       vqSetCmds([]);
       return;
+    case 'drillSummary':
+      vqSetText('level-title', 'DRILL SESSION SUMMARY');
+      vqSetText('hint', 'Press any key to head back to level select.');
+      vqSetText('status', `streak ${st.drillStreak}   ·   keys ${st.drillTotalKeys}/${st.drillTotalPar}`);
+      vqSetCmds([]);
+      return;
   }
 
   // playing / drill

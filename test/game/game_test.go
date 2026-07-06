@@ -460,6 +460,38 @@ func TestExCommandQ(t *testing.T) {
 	}
 }
 
+// TestExCommandQInDrillShowsSummary 는 :drill 세션 중 ":q"를 치면 바로 레벨
+// 선택으로 나가는 대신 StateDrillSummary(세션 통계 요약)로 전환되고, 거기서
+// 아무 키나 누르면 그제서야 레벨 선택으로 넘어가는지 확인한다.
+func TestExCommandQInDrillShowsSummary(t *testing.T) {
+	g := New()
+	ex(g, "drill")
+	lv := g.Level()
+	playKeys(g, lv.Solution) // 한 문제 클리어해 통계를 누적(streak>=1)
+	if g.State() != StateDrill {
+		t.Fatalf("드릴 문제 클리어 후 state=%v want StateDrill(다음 문제로 이어짐)", g.State())
+	}
+	streak := g.DrillStreak()
+	totalKeys, totalPar := g.DrillTotals()
+	if streak == 0 {
+		t.Fatal("드릴 클리어 후에도 streak 이 누적되지 않음")
+	}
+
+	ex(g, "q")
+	if g.State() != StateDrillSummary {
+		t.Fatalf(":drill 중 :q 후 state=%v want StateDrillSummary", g.State())
+	}
+	if s2, k2, p2 := g.DrillStreak(), totalKeys, totalPar; s2 != streak || k2 != totalKeys || p2 != totalPar {
+		t.Fatalf("요약 화면 진입 시 통계가 바뀜: streak=%d(전 %d) keys=%d(전 %d) par=%d(전 %d)",
+			s2, streak, k2, totalKeys, p2, totalPar)
+	}
+
+	g.Input(engine.RuneKey('x')) // 임의의 키 — 재도전/클리어 등 다른 의미가 없어야 함
+	if g.State() != StateLevelSelect {
+		t.Fatalf("요약 화면에서 아무 키 입력 후 state=%v want StateLevelSelect", g.State())
+	}
+}
+
 // TestStrokesExemptExCommand 는 ':' 진입과 그 이후 ex-command 입력이 strokes
 // 를 증가시키지 않는지 확인한다 — ':help' 를 열어봐도 별점 손해가 없어야 한다.
 func TestStrokesExemptExCommand(t *testing.T) {

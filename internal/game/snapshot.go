@@ -32,6 +32,14 @@ func (g *Game) Snapshot() map[string]any {
 		base["worldCount"] = len(WorldGroups())
 		return base
 
+	case StateDrillSummary:
+		base["state"] = "drillSummary"
+		base["drillKind"] = g.drillKind
+		base["drillStreak"] = g.drillStreak
+		base["drillTotalKeys"] = g.drillTotalKeys
+		base["drillTotalPar"] = g.drillTotalPar
+		return base
+
 	case StateLevelClear:
 		base["state"] = "clear"
 		base["id"] = g.lv.ID

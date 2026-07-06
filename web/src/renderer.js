@@ -26,6 +26,7 @@ class Renderer {
       case 'allclear': return this.drawAllClear(st);
       case 'clear': return this.drawLevelClear(st);
       case 'select': return this.drawLevelSelect(st);
+      case 'drillSummary': return this.drawDrillSummary(st);
       default: return this.drawPlaying(st);
     }
   }
@@ -155,6 +156,18 @@ class Renderer {
     this.ch(`yours     : ${st.clearYours || ''}`, 340, 350, COL.text);
     if (st.clearStars === 3 && st.solution) this.ch(`solution  : ${st.solution}`, 340, 380, COL.key);
     this.ch('[Enter] next   [r] retry', 340, 420, COL.muted);
+  }
+
+  // drawDrillSummary 는 :drill 세션을 ":q"/":levels" 로 빠져나올 때의 통계
+  // 요약 화면 — drillStreak/drillTotalKeys/drillTotalPar 는 세션 내내
+  // 누적돼 온 값을 그대로 읽는다(요약 화면에서 다시 계산할 게 없다).
+  drawDrillSummary(st) {
+    this.clear();
+    const pct = st.drillTotalPar > 0 ? Math.round(st.drillTotalKeys * 100 / st.drillTotalPar) : 0;
+    this.ch('DRILL SESSION SUMMARY', 340, 220, COL.exit);
+    this.ch(`streak    : ${st.drillStreak}`, 340, 260, COL.text);
+    this.ch(`keys/par  : ${st.drillTotalKeys}/${st.drillTotalPar} (${pct}%)`, 340, 290, COL.text);
+    this.ch('[any key] back to level select', 340, 330, COL.muted);
   }
 
   drawLevelSelect(st) {

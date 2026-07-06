@@ -30,6 +30,7 @@ const (
 	StateLevelSelect
 	StateAllClear
 	StateDrill
+	StateDrillSummary // :drill 세션을 ":q"/":levels" 로 빠져나갈 때의 통계 요약 화면
 )
 
 // Game 은 한 판의 전체 상태. 상태를 바꾸는 공개 경로는 Input()/Tick() 과
@@ -244,7 +245,14 @@ func (g *Game) RestartCurrent() {
 func (g *Game) runExCommand(cmd string) {
 	switch {
 	case cmd == "q" || cmd == "levels":
-		g.EnterLevelSelect()
+		if g.state == StateDrill {
+			// 드릴 중엔 바로 레벨 선택으로 나가지 않고, 이번 세션 통계를 한 번
+			// 보여준다 — drillStreak/drillTotalKeys/drillTotalPar 는 세션 내내
+			// 누적돼 온 값이라 여기서 다시 계산할 필요 없이 그대로 읽으면 된다.
+			g.state = StateDrillSummary
+		} else {
+			g.EnterLevelSelect()
+		}
 	case cmd == "restart" || cmd == "e!":
 		g.RestartCurrent()
 	case cmd == "help":
@@ -317,6 +325,10 @@ func (g *Game) Input(k engine.Key) {
 		}
 	case StateLevelSelect:
 		g.inputLevelSelect(k)
+	case StateDrillSummary:
+		// 재도전/클리어처럼 이미 다른 뜻을 지닌 키가 없으므로(드릴 세션은
+		// 끝났다) 아무 키나 눌러도 레벨 선택으로 진행한다.
+		g.EnterLevelSelect()
 	case StateAllClear:
 		if k.S == "cr" || k.S == "esc" {
 			g.EnterLevelSelect()

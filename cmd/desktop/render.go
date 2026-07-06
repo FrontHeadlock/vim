@@ -62,6 +62,8 @@ func (a *app) Draw(screen *ebiten.Image) {
 		a.drawLevelClear(screen)
 	case game.StateLevelSelect:
 		a.drawLevelSelect(screen)
+	case game.StateDrillSummary:
+		a.drawDrillSummary(screen)
 	default: // StatePlaying / StateDrill
 		a.drawPlaying(screen)
 	}
@@ -71,6 +73,22 @@ func (a *app) drawAllClear(screen *ebiten.Image) {
 	drawChar(screen, "ALL CLEAR!", 360, 250, colExit)
 	drawChar(screen, "W1-W"+strconv.Itoa(len(game.WorldGroups()))+" "+strconv.Itoa(game.LevelCount())+" levels complete.", 300, 290, colText)
 	drawChar(screen, "[Enter] level select", 340, 330, colMuted)
+}
+
+// drawDrillSummary 는 :drill 세션을 ":q"/":levels" 로 빠져나올 때의 통계
+// 요약 화면을 렌더한다 — drillStreak/DrillTotals 는 세션 내내 누적돼 온 값을
+// 그대로 읽는다(요약 화면 진입 시점에 다시 계산할 게 없다).
+func (a *app) drawDrillSummary(screen *ebiten.Image) {
+	g := a.g
+	keys, par := g.DrillTotals()
+	drawChar(screen, "DRILL SESSION SUMMARY", 340, 220, colExit)
+	drawChar(screen, "streak    : "+strconv.Itoa(g.DrillStreak()), 340, 260, colText)
+	pct := 0
+	if par > 0 {
+		pct = keys * 100 / par
+	}
+	drawChar(screen, "keys/par  : "+strconv.Itoa(keys)+"/"+strconv.Itoa(par)+" ("+strconv.Itoa(pct)+"%)", 340, 290, colText)
+	drawChar(screen, "[any key] back to level select", 340, 330, colMuted)
 }
 
 func (a *app) drawPlaying(screen *ebiten.Image) {
