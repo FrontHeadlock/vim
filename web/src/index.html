@@ -81,7 +81,14 @@
   #controls{ margin-top:14px; display:flex; gap:8px; flex-wrap:wrap; }
 
   /* ── game canvas frame ── */
-  canvas{ border:2px solid var(--line); box-shadow:0 0 0 5px var(--bg2),0 0 40px rgba(0,0,0,.55); }
+  /* image-rendering 은 body 에서도 상속되지만, 캔버스 자체 배율 축소 시
+     반드시 필요한 속성이라 명시적으로 다시 건다. max-width 는 JS
+     (renderer.js 의 applyResponsiveScale)가 아직 못 돌았을 때의 안전망 —
+     #panel/#ime-warning 등과 같은 96vw 여유폭 관례. */
+  canvas{
+    border:2px solid var(--line); box-shadow:0 0 0 5px var(--bg2),0 0 40px rgba(0,0,0,.55);
+    image-rendering:pixelated; max-width:96vw; height:auto;
+  }
 
   /* ── IME warning ── */
   #ime-warning{

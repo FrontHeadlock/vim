@@ -14,10 +14,38 @@ const COL = {
 
 class Renderer {
   constructor(canvas) {
+    this.canvas = canvas;
+    // HiDPI: 캔버스의 물리 픽셀(backing store)만 devicePixelRatio 배로 키우고
+    // ctx.scale 로 상쇄한다 — 이후 모든 draw* 호출은 여전히 논리 좌표계
+    // (W×H = 960×600)로 그리면 되고, 레티나에서만 자동으로 선명해진다.
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
     this.ctx = canvas.getContext('2d');
+    this.ctx.scale(dpr, dpr);
     // basicfont 의 투박한 느낌을 유지하되 신규 에셋은 쓰지 않는다(시스템 monospace).
     this.ctx.font = '26px Menlo, Consolas, monospace';
     this.ctx.textBaseline = 'top';
+
+    this.applyResponsiveScale();
+    window.addEventListener('resize', () => this.applyResponsiveScale());
+  }
+
+  // applyResponsiveScale 은 논리 캔버스(960×600)의 표시 크기(CSS 픽셀 — 위의
+  // 물리 픽셀 backing store 와는 별개)를 뷰포트에 맞게 줄인다. 정수 배율
+  // 후보(1, 0.75, 0.5) 중 뷰포트에 맞는 가장 큰 값만 골라 적용 — 임의
+  // 소수 배율은 쓰지 않는다(CSS image-rendering:pixelated 와 함께 정수
+  // 배율에서만 격자가 깨끗하게 유지된다).
+  applyResponsiveScale() {
+    const scales = [1, 0.75, 0.5];
+    const avail = document.documentElement.clientWidth || window.innerWidth;
+    let chosen = scales[scales.length - 1];
+    for (const s of scales) {
+      // #panel/#ime-warning 등 기존 max-width:96vw 관례와 같은 여유폭.
+      if (W * s <= avail * 0.96) { chosen = s; break; }
+    }
+    this.canvas.style.width = `${Math.round(W * chosen)}px`;
+    this.canvas.style.height = `${Math.round(H * chosen)}px`;
   }
 
   // draw 는 상태에 맞는 draw* 로 분기하는 단일 진입점(Go 의 Game.Draw 와 대응).
