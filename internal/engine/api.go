@@ -78,3 +78,7 @@ func (e *Editor) PendingString() string { return e.pendingStr }
 
 // LastKey 는 마지막으로 입력된 키의 표시용 문자열.
 func (e *Editor) LastKey() string { return e.lastKey }
+
+// Recording 은 현재 녹화 중인 매크로 레지스터(0=미기록) — 상태바에
+// "recording @a" 처럼 표시하기 위한 접근자.
+func (e *Editor) Recording() rune { return e.recording }

@@ -73,10 +73,32 @@ type Editor struct {
 
 	lastKey    string
 	pendingStr string
+
+	macros         map[rune][]Key // 레지스터별 완성된 매크로
+	recording      rune           // 0=미기록, 아니면 기록 중인 레지스터
+	recordBuf      []Key          // 기록 버퍼(curKeys 와는 별개 — dot 반복용이 아니다)
+	lastMacroReg   rune           // "@@" 가 재생할 마지막 레지스터
+	macroDepth     int            // 재생 중첩 가드(재귀 매크로 방지)
+	macroStepsLeft int            // 최상위 playMacro 호출 트리 전체의 남은 재생 스텝
 }
 
+// maxMacroDepth 는 매크로 재생 중첩(재귀 매크로 등)의 상한 — 재귀 자체를
+// 막는 안전망이다.
+//
+// maxMacroSteps 는 그와 별개로 훨씬 더 중요한 상한이다: depth 상한만으로는
+// "레지스터 안에서 자기 자신을 count>1 로 재생"하는 패턴(예: "qa2@aq" 뒤
+// "@a")을 못 막는다 — 재귀 한 단계 내려갈 때마다 남은 count 만큼 다시
+// 갈라지므로 실행량이 depth 에 지수적으로 불어난다(depth=100, count=2 여도
+// 2^100 번의 Feed 호출). fuzz(FuzzEditorNeverPanics)가 "qa2@aq@a" 로 이 행업을
+// 실제로 찾아냈다. macroStepsLeft 는 재귀 트리 전체가 공유하는 단일 예산이라
+// depth·count 조합과 무관하게 총 실행량을 유계로 만든다.
+const (
+	maxMacroDepth = 100
+	maxMacroSteps = 1 << 16
+)
+
 func NewEditor(lines []string) *Editor {
-	e := &Editor{}
+	e := &Editor{macros: map[rune][]Key{}}
 	e.SetLines(lines)
 	return e
 }
@@ -185,6 +207,16 @@ func (e *Editor) Feed(k Key) {
 		e.lastKey = string(k.R)
 	} else {
 		e.lastKey = k.S
+	}
+	// 매크로 녹화: Feed 가 유일한 모드 무관 진입점이라 여기 두면 검색
+	// 시퀀스(/pattern<cr>)까지 포함해 임의 커맨드를 기록할 수 있다.
+	// !e.replaying 은 dot(.) 재생 중 내부 전개가 이중으로 녹화되는 것을
+	// 막고, macroDepth==0 은 매크로 재생 자체의 키가 (재생 중 우연히
+	// 녹화가 걸려 있어도) 다시 녹화되지 않게 막는다. 시작/종료 "q"와
+	// 레지스터 문자는 recording 이 아직/이미 0 인 시점이라 자연히 빠지고,
+	// 종료 "q" 한 글자만 case 'q' 쪽에서 잘라낸다(normal.go).
+	if e.recording != 0 && !e.replaying && e.macroDepth == 0 {
+		e.recordBuf = append(e.recordBuf, k)
 	}
 	if e.searching {
 		e.feedSearch(k)

@@ -43,6 +43,8 @@ func FuzzEditorNeverPanics(f *testing.F) {
 		"u<c-r>u<c-r>", "vjjd", "Vjjd", "ihello<esc>", "ohello<esc>",
 		"3x", "2dd", "d2fl", "dF(", "gg", "G", "1G", "",
 		"i<esc>u", "raa~~u", "cc<esc>.",
+		"qaddq@a", "qax@aq@a", "%", "d%", "50%", "qaihello<esc>q@a",
+		"qaxq3@a", "qaxq@@", "9999@a",
 	}
 	for _, s := range seeds {
 		f.Add(s)

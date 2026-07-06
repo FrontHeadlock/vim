@@ -109,6 +109,34 @@ func (e *Editor) feedNormal(k Key) {
 	case 'g':
 		e.await = "g"
 		return
+	case 'q':
+		if e.macroDepth > 0 {
+			break // 재생 중엔 녹화 시작/종료 토글 금지
+		}
+		if e.recording != 0 {
+			// recordBuf 에는 이 종료 "q" 자신도 이미 담겨 있다(editor.go 의
+			// Feed 캡처 훅이 dispatch 보다 먼저 돈다) — 잘라내고 확정.
+			buf := e.recordBuf
+			if len(buf) > 0 {
+				buf = buf[:len(buf)-1]
+			}
+			e.macros[e.recording] = append([]Key(nil), buf...)
+			e.recording, e.recordBuf = 0, nil
+		} else {
+			e.await = "q"
+			return
+		}
+	case '@':
+		e.await = "@"
+		return
+	case '%':
+		n := e.count // takeCount() 이전에 원본 보존(0 = count 없음 = matchBracket)
+		e.count = 0
+		if n > 0 {
+			e.gotoPercentLine(n)
+		} else {
+			e.matchBracket()
+		}
 	case 'G':
 		n := e.count // takeCount() 이전에 원본 보존(0 = count 없음 = 마지막 줄)
 		e.count = 0
@@ -198,6 +226,26 @@ func (e *Editor) replayDot() {
 
 func (e *Editor) handleAwait(k Key) {
 	switch e.await {
+	case "q":
+		if k.R >= 'a' && k.R <= 'z' {
+			e.recording, e.recordBuf = k.R, nil
+		}
+		e.clearPending()
+	case "@":
+		reg := k.R
+		if reg == '@' {
+			reg = e.lastMacroReg
+		}
+		cnt := e.takeCount()
+		// clearPending 을 playMacro 보다 먼저 호출해야 한다 — await 가 "@"
+		// 로 남아있으면 재생 중 먹이는 개별 Feed 호출마다 IsCmdStart()가
+		// false 가 돼 finishIfBoundary 가 매번 조기 반환하고, 그 결과 매크로
+		// 안의 어떤 커맨드도 undo/dot 커밋이 안 되는 버그가 생긴다.
+		e.clearPending()
+		if reg != 0 {
+			e.lastMacroReg = reg
+			e.playMacro(reg, cnt)
+		}
 	case "g":
 		if k.R == 'g' {
 			n := e.count // takeCount() 이전에 원본 보존(0 = count 없음 = 첫 줄)
