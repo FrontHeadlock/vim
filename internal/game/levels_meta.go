@@ -346,6 +346,49 @@ var levelMeta = map[string]LevelMeta{
 			{"xp", "swap two chars"},
 		},
 	},
+	"9-1": {
+		Title: "9-1  Record Once, Replay Many",
+		Hint:  "Same fix, six times over. Record the fix on line one as macro 'a', then replay it on the rest.",
+		Cmds: []Cmd{
+			{"qa ... q", "record keystrokes into register a"},
+			{"@a", "replay macro a once"},
+			{"5@a", "replay macro a 5 times"},
+		},
+	},
+	"9-2": {
+		Title: "9-2  Bulk Delete",
+		Hint:  "Every line has the same intruder word. Record the delete-and-move-on once, then replay it for the rest.",
+		Cmds: []Cmd{
+			{"qa ... q", "record keystrokes into register a"},
+			{"daw", "delete a word incl. its space"},
+			{"N@a", "replay macro a N times"},
+		},
+	},
+	"9-3": {
+		Title: "9-3  Percent Power",
+		Hint:  "Jump from ( to its matching ) with %, then keep going — record the whole hop-and-edit as a macro.",
+		Cmds: []Cmd{
+			{"%", "jump to the matching ( ) [ ] { }"},
+			{"qa ... q", "record keystrokes into register a"},
+			{"N@a", "replay macro a N times"},
+		},
+	},
+	"9-4": {
+		Title: "9-4  Compound Edits, One Take",
+		Hint:  "Two separate fixes on every line. Dot only repeats the last change — a macro replays the whole recipe.",
+		Cmds: []Cmd{
+			{"qa ... q", "record several changes into register a"},
+			{"N@a", "replay the whole recipe N times"},
+		},
+	},
+	"9-5": {
+		Title: "9-5  Boss: The Long Ledger",
+		Hint:  "Eight lines, one fix each. This is what macros are for — record it once and let @ do the typing.",
+		Cmds: []Cmd{
+			{"qa ... q", "record keystrokes into register a"},
+			{"N@a", "replay macro a N times"},
+		},
+	},
 }
 
 // MetaFor 는 레벨 ID 의 표시 데이터를 돌려준다(없으면 zero value).

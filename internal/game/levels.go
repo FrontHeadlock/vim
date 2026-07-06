@@ -365,6 +365,75 @@ var levels = []Level{
 		Target:   []string{"one two", "x = 99", "bacd"},
 		Solution: "wdawj$ciw99<esc>j0xp",
 	},
+
+	// ───────────────────────── W9  Macro Mines (q/@/@@, %) ─────────────────────────
+	{
+		ID:   "9-1",
+		Kind: "edit",
+		Map: []string{
+			"fix THIS line", "fix THIS line", "fix THIS line",
+			"fix THIS line", "fix THIS line", "fix THIS line",
+		},
+		Target: []string{
+			"fix that line", "fix that line", "fix that line",
+			"fix that line", "fix that line", "fix that line",
+		},
+		Solution: "qawcwthat<esc>j0q5@a",
+	},
+	{
+		ID:   "9-2",
+		Kind: "edit",
+		Map: []string{
+			"one BAD two", "one BAD two", "one BAD two", "one BAD two",
+			"one BAD two", "one BAD two", "one BAD two",
+		},
+		Target: []string{
+			"one two", "one two", "one two", "one two",
+			"one two", "one two", "one two",
+		},
+		Solution: "qawdawj0q6@a",
+	},
+	{
+		ID:   "9-3",
+		Kind: "edit",
+		Map: []string{
+			"process(data)", "process(data)", "process(data)",
+			"process(data)", "process(data)",
+		},
+		Target: []string{
+			"process(data);", "process(data);", "process(data);",
+			"process(data);", "process(data);",
+		},
+		Solution: "qaf(%a;<esc>j0q4@a",
+	},
+	{
+		ID:   "9-4",
+		Kind: "edit",
+		Map: []string{
+			"cut BAD here fix OLD there", "cut BAD here fix OLD there",
+			"cut BAD here fix OLD there", "cut BAD here fix OLD there",
+			"cut BAD here fix OLD there", "cut BAD here fix OLD there",
+		},
+		Target: []string{
+			"cut here fix NEW there", "cut here fix NEW there",
+			"cut here fix NEW there", "cut here fix NEW there",
+			"cut here fix NEW there", "cut here fix NEW there",
+		},
+		Solution: "qawvawdwwciwNEW<esc>j0q5@a",
+	},
+	{
+		ID:   "9-5",
+		Kind: "edit",
+		Map: []string{
+			"val = OLD", "val = OLD", "val = OLD", "val = OLD",
+			"val = OLD", "val = OLD", "val = OLD", "val = OLD",
+		},
+		Target: []string{
+			"val = 42", "val = 42", "val = 42", "val = 42",
+			"val = 42", "val = 42", "val = 42", "val = 42",
+		},
+		Solution: "qa$ciw42<esc>j0q7@a",
+	},
 }
 
 // LevelCount 는 전체 커리큘럼 레벨 수(렌더러의 "level N/M" 표기용).

@@ -177,6 +177,55 @@ func TestLevel16NaiveSolveIsWorse(t *testing.T) {
 	}
 }
 
+// naiveFromMacroSolution 은 "qa<body>q<count>@a" 형태의 W9 Solution 에서
+// <body>(기록된 편집 한 줄 분)를 뽑아 total 회(=레벨의 줄 수) 반복한
+// "매크로 없이 손타이핑" 시퀀스를 만든다. W9 레벨 전부가 레지스터 a 하나만
+// 쓰고, 기록 본문 안에 리터럴 'q' 문자가 없다는 저작 관례를 전제한다(둘 다
+// TestEditLevelsSolvable/이 함수 자체가 앞으로 깨지면 바로 드러난다).
+func naiveFromMacroSolution(t *testing.T, id, sol string, total int) string {
+	t.Helper()
+	if !strings.HasPrefix(sol, "qa") {
+		t.Fatalf("[%s] Solution이 \"qa\"로 시작하지 않음(W9 저작 관례 위반): %q", id, sol)
+	}
+	rest := sol[len("qa"):]
+	idx := strings.IndexByte(rest, 'q')
+	if idx < 0 {
+		t.Fatalf("[%s] Solution에서 기록 종료 \"q\"를 못 찾음: %q", id, sol)
+	}
+	body := rest[:idx]
+	return strings.Repeat(body, total)
+}
+
+// TestW9NaiveSolveIsWorse 는 W9(매크로) 레벨을 매크로 없이 손타이핑(같은
+// 편집을 줄마다 직접 반복)해도 클리어는 되지만, par(매크로 사용 기준) 대비
+// 1.5배를 넘는 타수가 드는지 확인한다 — "매크로 없이는 par 급이 불가능"함을
+// 실측으로 보증한다(패턴은 TestLevel16NaiveSolveIsWorse와 동일).
+func TestW9NaiveSolveIsWorse(t *testing.T) {
+	for i := 0; i < LevelCount(); i++ {
+		lv := LevelAt(i)
+		if !strings.HasPrefix(lv.ID, "9-") {
+			continue
+		}
+		par := len(engine.ParseKeys(lv.Solution))
+		naiveKeys := naiveFromMacroSolution(t, lv.ID, lv.Solution, len(lv.Map))
+
+		e := engine.NewEditor(append([]string(nil), lv.Map...))
+		feedKeys(e, naiveKeys)
+		got := strings.Join(e.Lines(), "\n")
+		want := strings.Join(lv.Target, "\n")
+		if got != want {
+			t.Errorf("[%s] naive(매크로 없는) 시퀀스가 Target에 도달 못함\n  got:  %q\n  want: %q", lv.ID, got, want)
+			continue
+		}
+
+		naive := len(engine.ParseKeys(naiveKeys))
+		if float64(naive) <= float64(par)*1.5 {
+			t.Errorf("[%s] naive(%d)가 par(%d)*1.5=%.1f를 넘지 않음 — 매크로 없이도 2★ 이상 가능",
+				lv.ID, naive, par, float64(par)*1.5)
+		}
+	}
+}
+
 // TestNavigateBlocksEditing 은 navigate 레벨에서 편집키가 막히는지 확인한다.
 func TestNavigateBlocksEditing(t *testing.T) {
 	g := New() // 1-1

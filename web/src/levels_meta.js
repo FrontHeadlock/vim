@@ -651,5 +651,87 @@ const LEVEL_META = {
         "d": "swap two chars"
       }
     ]
+  },
+  "9-1": {
+    "title": "9-1  Record Once, Replay Many",
+    "hint": "Same fix, six times over. Record the fix on line one as macro 'a', then replay it on the rest.",
+    "cmds": [
+      {
+        "k": "qa ... q",
+        "d": "record keystrokes into register a"
+      },
+      {
+        "k": "@a",
+        "d": "replay macro a once"
+      },
+      {
+        "k": "5@a",
+        "d": "replay macro a 5 times"
+      }
+    ]
+  },
+  "9-2": {
+    "title": "9-2  Bulk Delete",
+    "hint": "Every line has the same intruder word. Record the delete-and-move-on once, then replay it for the rest.",
+    "cmds": [
+      {
+        "k": "qa ... q",
+        "d": "record keystrokes into register a"
+      },
+      {
+        "k": "daw",
+        "d": "delete a word incl. its space"
+      },
+      {
+        "k": "N@a",
+        "d": "replay macro a N times"
+      }
+    ]
+  },
+  "9-3": {
+    "title": "9-3  Percent Power",
+    "hint": "Jump from ( to its matching ) with %, then keep going — record the whole hop-and-edit as a macro.",
+    "cmds": [
+      {
+        "k": "%",
+        "d": "jump to the matching ( ) [ ] { }"
+      },
+      {
+        "k": "qa ... q",
+        "d": "record keystrokes into register a"
+      },
+      {
+        "k": "N@a",
+        "d": "replay macro a N times"
+      }
+    ]
+  },
+  "9-4": {
+    "title": "9-4  Compound Edits, One Take",
+    "hint": "Two separate fixes on every line. Dot only repeats the last change — a macro replays the whole recipe.",
+    "cmds": [
+      {
+        "k": "qa ... q",
+        "d": "record several changes into register a"
+      },
+      {
+        "k": "N@a",
+        "d": "replay the whole recipe N times"
+      }
+    ]
+  },
+  "9-5": {
+    "title": "9-5  Boss: The Long Ledger",
+    "hint": "Eight lines, one fix each. This is what macros are for — record it once and let @ do the typing.",
+    "cmds": [
+      {
+        "k": "qa ... q",
+        "d": "record keystrokes into register a"
+      },
+      {
+        "k": "N@a",
+        "d": "replay macro a N times"
+      }
+    ]
   }
 };
