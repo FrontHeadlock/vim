@@ -135,6 +135,15 @@ var levels = []Level{
 		},
 		Solution: "$0jj$",
 	},
+	{
+		// 보너스: 1-6 과 같은 패턴("K"가 시작 뒤에 있어 F 로 되짚어야 하고,
+		// 반대편 K/$ 까지는 f 로 건너뛰는 게 유리) — hjkl 로만 풀면 훨씬
+		// 비효율적임을 TestBonusLandmarkLevelsNaiveSolveIsWorse 가 보증한다.
+		ID:       "2-4",
+		Kind:     "navigate",
+		Map:      []string{"K" + strings.Repeat(".", 8) + "@K" + strings.Repeat(".", 16) + "$"},
+		Solution: "FKfKf$",
+	},
 
 	// ───────────────────────── W3  The Editing Dungeon (operators + Insert) ─────────────────────────
 	{
@@ -179,6 +188,15 @@ var levels = []Level{
 		Target:   []string{"bar bar bar"},
 		Solution: "cwbar<esc>w.w.",
 	},
+	{
+		// 보너스: 연산자+count("d6w")로 단어 6개를 한 번에 지우는 것과, count
+		// 없이 "dw"를 여섯 번 반복하는 것의 타수 차이를 보여준다.
+		ID:       "3-7",
+		Kind:     "edit",
+		Map:      []string{"remove one two three four five words here"},
+		Target:   []string{"remove here"},
+		Solution: "wd6w",
+	},
 
 	// ───────────────────────── W4  Temple of Text Objects (advanced editing) ─────────────────────────
 	{
@@ -216,6 +234,15 @@ var levels = []Level{
 		Target:   []string{"x = 42", "y = 42"},
 		Solution: "$ciw42<esc>j$.",
 	},
+	{
+		// 보너스: 괄호 안 내용을 text object(di()로 한 번에 비우는 것과,
+		// text object 없이 문자 하나씩 x 로 지우는 것의 타수 차이를 보여준다.
+		ID:       "4-6",
+		Kind:     "edit",
+		Map:      []string{"keep(one two three four five)keep"},
+		Target:   []string{"keep()keep"},
+		Solution: "f(di(",
+	},
 
 	// ───────────────────────── W5  Search Swamp (search) ─────────────────────────
 	{
@@ -249,6 +276,14 @@ var levels = []Level{
 			"@....K.........K.............K.......$",
 		},
 		Solution: "/K<cr>nn/$<cr>",
+	},
+	{
+		// 보너스: 1-6 과 같은 K-behind/K-ahead 패턴 — hjkl 로만 풀면 훨씬
+		// 비효율적임을 TestBonusLandmarkLevelsNaiveSolveIsWorse 가 보증한다.
+		ID:       "5-5",
+		Kind:     "navigate",
+		Map:      []string{"K" + strings.Repeat(".", 15) + "@K" + strings.Repeat(".", 25) + "$"},
+		Solution: "FKfKf$",
 	},
 
 	// ───────────────────────── W6  Precision Peaks (count, F/t, edit count) ─────────────────────────
@@ -291,6 +326,14 @@ var levels = []Level{
 		},
 		Solution: "4wf$",
 	},
+	{
+		// 보너스: 1-6 과 같은 K-behind/K-ahead 패턴 — hjkl 로만 풀면 훨씬
+		// 비효율적임을 TestBonusLandmarkLevelsNaiveSolveIsWorse 가 보증한다.
+		ID:       "6-6",
+		Kind:     "navigate",
+		Map:      []string{"K" + strings.Repeat(".", 10) + "@K" + strings.Repeat(".", 20) + "$"},
+		Solution: "FKfKf$",
+	},
 
 	// ───────────────────────── W7  Visual Valley (visual mode + text objects) ─────────────────────────
 	{
@@ -320,6 +363,15 @@ var levels = []Level{
 		Map:      []string{"cut BAD here fix OLD there"},
 		Target:   []string{"cut here fix NEW there"},
 		Solution: "wvawdwwciwNEW<esc>",
+	},
+	{
+		// 보너스: Visual 로 여러 단어를 한 번에 선택해 지우는 것과, 문자
+		// 하나씩 x 로 지우는 것의 타수 차이를 보여준다.
+		ID:       "7-5",
+		Kind:     "edit",
+		Map:      []string{"keep one two three four keep"},
+		Target:   []string{"keep  keep"},
+		Solution: "wveeeed",
 	},
 
 	// ───────────────────────── W8  Yank & Undo Ruins (xp, ddp, p/P, u/Ctrl-r) ─────────────────────────
@@ -364,6 +416,15 @@ var levels = []Level{
 		Map:      []string{"one BAD two", "x = OLD", "abcd"},
 		Target:   []string{"one two", "x = 99", "bacd"},
 		Solution: "wdawj$ciw99<esc>j0xp",
+	},
+	{
+		// 보너스: yank+paste 로 줄을 복제하는 것과, 매번 새로 타이핑해서
+		// 줄을 추가하는 것의 타수 차이를 보여준다.
+		ID:       "8-7",
+		Kind:     "edit",
+		Map:      []string{"template line"},
+		Target:   []string{"template line", "template line", "template line", "template line"},
+		Solution: "yyppp",
 	},
 
 	// ───────────────────────── W9  Macro Mines (q/@/@@, %) ─────────────────────────

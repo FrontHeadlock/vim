@@ -92,6 +92,14 @@ var levelMeta = map[string]LevelMeta{
 			{"gg G", "first / last line"},
 		},
 	},
+	"2-4": {
+		Title: "2-4  Bonus: Behind and Ahead",
+		Hint:  "One key is behind you — F jumps back for it. Grab the second key and the exit with f.",
+		Cmds: []Cmd{
+			{"F{char}", "find char backward"},
+			{"f{char}", "find char forward"},
+		},
+	},
 	"3-1": {
 		Title: "3-1  Fix Typos with x",
 		Hint:  "Too many letters (a typo). Move onto the extra letters and delete them to match the target on the right.",
@@ -147,6 +155,13 @@ var levelMeta = map[string]LevelMeta{
 			{".", "repeat the last change"},
 		},
 	},
+	"3-7": {
+		Title: "3-7  Bonus: Delete Six Words At Once",
+		Hint:  "Six words to remove. Don't press dw six times — put a count in front of the motion.",
+		Cmds: []Cmd{
+			{"d6w", "delete 6 words forward"},
+		},
+	},
 	"4-1": {
 		Title: "4-1  Delete a Whole Word with daw",
 		Hint:  "Delete a single word, trailing space and all. Use the 'a word' text object with the delete operator.",
@@ -192,6 +207,14 @@ var levelMeta = map[string]LevelMeta{
 			{".", "repeat the last change"},
 		},
 	},
+	"4-6": {
+		Title: "4-6  Bonus: Empty the Parens",
+		Hint:  "Lots to clear out between ( and ). One text object empties it all in a single move.",
+		Cmds: []Cmd{
+			{"f(", "find the opening ("},
+			{"di(", "delete inside ( )"},
+		},
+	},
 	"5-1": {
 		Title: "5-1  Search Swamp",
 		Hint:  "The key is buried far down the swamp. Search for it instead of crawling — then search for the exit too.",
@@ -222,6 +245,14 @@ var levelMeta = map[string]LevelMeta{
 		Cmds: []Cmd{
 			{"/{pattern}", "search forward"},
 			{"n", "repeat last search forward"},
+		},
+	},
+	"5-5": {
+		Title: "5-5  Bonus: The Key Behind You",
+		Hint:  "Unlike the rest of this swamp, one key sits behind your start. Find it, then find the rest ahead.",
+		Cmds: []Cmd{
+			{"F{char}", "find char backward"},
+			{"f{char}", "find char forward"},
 		},
 	},
 	"6-1": {
@@ -261,6 +292,14 @@ var levelMeta = map[string]LevelMeta{
 			{"f{char}", "leap to that char"},
 		},
 	},
+	"6-6": {
+		Title: "6-6  Bonus: Behind and Ahead, Again",
+		Hint:  "Same trick as before, tighter margins — F for the key behind, f for what's ahead.",
+		Cmds: []Cmd{
+			{"F{char}", "find char backward"},
+			{"f{char}", "find char forward"},
+		},
+	},
 	"7-1": {
 		Title: "7-1  Visual Delete",
 		Hint:  "Select the unwanted stretch with Visual mode, then delete the whole selection at once.",
@@ -294,6 +333,15 @@ var levelMeta = map[string]LevelMeta{
 			{"aw", "'a word' text object (extends selection)"},
 			{"d", "delete the selection"},
 			{"ciw", "change inner word"},
+		},
+	},
+	"7-5": {
+		Title: "7-5  Bonus: Select Once, Delete Once",
+		Hint:  "Four words to remove. Select the whole span in Visual mode, then delete it in one command.",
+		Cmds: []Cmd{
+			{"v", "enter Visual"},
+			{"e", "extend selection to end of word"},
+			{"d", "delete the selection"},
 		},
 	},
 	"8-1": {
@@ -344,6 +392,14 @@ var levelMeta = map[string]LevelMeta{
 			{"daw", "delete a word incl. its space"},
 			{"ciw", "change the word under cursor"},
 			{"xp", "swap two chars"},
+		},
+	},
+	"8-7": {
+		Title: "8-7  Bonus: Clone It, Don't Retype It",
+		Hint:  "You need three more copies of this line. Yank it once, then paste it as many times as you need.",
+		Cmds: []Cmd{
+			{"yy", "copy the line"},
+			{"p", "paste after cursor line"},
 		},
 	},
 	"9-1": {

@@ -176,6 +176,20 @@ const LEVEL_META = {
       }
     ]
   },
+  "2-4": {
+    "title": "2-4  Bonus: Behind and Ahead",
+    "hint": "One key is behind you — F jumps back for it. Grab the second key and the exit with f.",
+    "cmds": [
+      {
+        "k": "F{char}",
+        "d": "find char backward"
+      },
+      {
+        "k": "f{char}",
+        "d": "find char forward"
+      }
+    ]
+  },
   "3-1": {
     "title": "3-1  Fix Typos with x",
     "hint": "Too many letters (a typo). Move onto the extra letters and delete them to match the target on the right.",
@@ -288,6 +302,16 @@ const LEVEL_META = {
       }
     ]
   },
+  "3-7": {
+    "title": "3-7  Bonus: Delete Six Words At Once",
+    "hint": "Six words to remove. Don't press dw six times — put a count in front of the motion.",
+    "cmds": [
+      {
+        "k": "d6w",
+        "d": "delete 6 words forward"
+      }
+    ]
+  },
   "4-1": {
     "title": "4-1  Delete a Whole Word with daw",
     "hint": "Delete a single word, trailing space and all. Use the 'a word' text object with the delete operator.",
@@ -378,6 +402,20 @@ const LEVEL_META = {
       }
     ]
   },
+  "4-6": {
+    "title": "4-6  Bonus: Empty the Parens",
+    "hint": "Lots to clear out between ( and ). One text object empties it all in a single move.",
+    "cmds": [
+      {
+        "k": "f(",
+        "d": "find the opening ("
+      },
+      {
+        "k": "di(",
+        "d": "delete inside ( )"
+      }
+    ]
+  },
   "5-1": {
     "title": "5-1  Search Swamp",
     "hint": "The key is buried far down the swamp. Search for it instead of crawling — then search for the exit too.",
@@ -431,6 +469,20 @@ const LEVEL_META = {
       {
         "k": "n",
         "d": "repeat last search forward"
+      }
+    ]
+  },
+  "5-5": {
+    "title": "5-5  Bonus: The Key Behind You",
+    "hint": "Unlike the rest of this swamp, one key sits behind your start. Find it, then find the rest ahead.",
+    "cmds": [
+      {
+        "k": "F{char}",
+        "d": "find char backward"
+      },
+      {
+        "k": "f{char}",
+        "d": "find char forward"
       }
     ]
   },
@@ -489,6 +541,20 @@ const LEVEL_META = {
       {
         "k": "f{char}",
         "d": "leap to that char"
+      }
+    ]
+  },
+  "6-6": {
+    "title": "6-6  Bonus: Behind and Ahead, Again",
+    "hint": "Same trick as before, tighter margins — F for the key behind, f for what's ahead.",
+    "cmds": [
+      {
+        "k": "F{char}",
+        "d": "find char backward"
+      },
+      {
+        "k": "f{char}",
+        "d": "find char forward"
       }
     ]
   },
@@ -557,6 +623,24 @@ const LEVEL_META = {
       {
         "k": "ciw",
         "d": "change inner word"
+      }
+    ]
+  },
+  "7-5": {
+    "title": "7-5  Bonus: Select Once, Delete Once",
+    "hint": "Four words to remove. Select the whole span in Visual mode, then delete it in one command.",
+    "cmds": [
+      {
+        "k": "v",
+        "d": "enter Visual"
+      },
+      {
+        "k": "e",
+        "d": "extend selection to end of word"
+      },
+      {
+        "k": "d",
+        "d": "delete the selection"
       }
     ]
   },
@@ -649,6 +733,20 @@ const LEVEL_META = {
       {
         "k": "xp",
         "d": "swap two chars"
+      }
+    ]
+  },
+  "8-7": {
+    "title": "8-7  Bonus: Clone It, Don't Retype It",
+    "hint": "You need three more copies of this line. Yank it once, then paste it as many times as you need.",
+    "cmds": [
+      {
+        "k": "yy",
+        "d": "copy the line"
+      },
+      {
+        "k": "p",
+        "d": "paste after cursor line"
       }
     ]
   },

@@ -226,6 +226,82 @@ func TestW9NaiveSolveIsWorse(t *testing.T) {
 	}
 }
 
+// TestBonusLandmarkLevelsNaiveSolveIsWorse 는 1-6 과 같은 패턴으로 추가된
+// 보너스 navigate 레벨(2-4/5-5/6-6 — K 가 시작 뒤에 있어 hjkl 만으로는 왼쪽
+// 끝까지 갔다가 오른쪽 끝까지 되짚어야 하는 구조)이 전부 hjkl 만으로 풀면
+// par 대비 1.5배를 넘는 타수가 드는지 확인한다(로직은 TestLevel16NaiveSolveIsWorse
+// 와 동일 — 대상 레벨만 여러 개로 확장).
+func TestBonusLandmarkLevelsNaiveSolveIsWorse(t *testing.T) {
+	for _, id := range []string{"2-4", "5-5", "6-6"} {
+		idx := levelIndexByID(id)
+		if idx < 0 {
+			t.Fatalf("레벨 %s 을 찾을 수 없음", id)
+		}
+		lv := LevelAt(idx)
+		par := len(engine.ParseKeys(lv.Solution))
+
+		row := lv.Map[0]
+		startCol := strings.IndexRune(row, '@')
+		e := engine.NewEditor([]string{row})
+		e.SetCursor(0, startCol)
+		naiveKeys := strings.Repeat("h", startCol) + strings.Repeat("l", len([]rune(row))-1)
+		feedKeys(e, naiveKeys)
+		if e.Col() != len([]rune(row))-1 {
+			t.Errorf("[%s] naive 해가 출구 칸에 도달 못함: col=%d want %d", id, e.Col(), len([]rune(row))-1)
+			continue
+		}
+		naive := len(naiveKeys)
+		if float64(naive) <= float64(par)*1.5 {
+			t.Errorf("[%s] naive(%d) 가 par(%d)*1.5=%.1f 를 넘지 않음 — hjkl 만으로도 2★ 이상 가능",
+				id, naive, par, float64(par)*1.5)
+		}
+	}
+}
+
+// TestBonusEditLevelsNaiveSolveIsWorse 는 W3/W4/W7/W8 에 추가된 보너스
+// edit 레벨(count/text object/visual-select/yank-paste 를 안 쓰고 손타이핑만
+// 반복하면 par 대비 1.5배를 넘는지) 을 확인한다 — 각 레벨의 "naive" 시퀀스는
+// 해당 레벨이 가르치려는 효율 기법(count·text object·visual·yank)을 의도적으로
+// 배제한, 그래도 Target 엔 도달하는 손타이핑 경로다.
+func TestBonusEditLevelsNaiveSolveIsWorse(t *testing.T) {
+	cases := []struct {
+		id    string
+		naive string // count/text-object/visual/yank 없이 손타이핑만으로 Target 도달
+	}{
+		// 3-7: "d6w"(count) 대신 "dw" 를 6번.
+		{"3-7", "w" + strings.Repeat("dw", 6)},
+		// 4-6: "di("(text object) 대신 괄호 안 23글자를 x 로 하나씩.
+		{"4-6", "f(l" + strings.Repeat("x", 23)},
+		// 7-5: "v" + count 모션(4e) 대신 4단어치(18글자) 를 x 로 하나씩.
+		{"7-5", "w" + strings.Repeat("x", 18)},
+		// 8-7: yank+paste 대신 매번 새 줄을 열어 직접 타이핑 3회.
+		{"8-7", strings.Repeat("otemplate line<esc>", 3)},
+	}
+	for _, c := range cases {
+		idx := levelIndexByID(c.id)
+		if idx < 0 {
+			t.Fatalf("레벨 %s 을 찾을 수 없음", c.id)
+		}
+		lv := LevelAt(idx)
+		par := len(engine.ParseKeys(lv.Solution))
+
+		e := engine.NewEditor(append([]string(nil), lv.Map...))
+		feedKeys(e, c.naive)
+		got := strings.Join(e.Lines(), "\n")
+		want := strings.Join(lv.Target, "\n")
+		if got != want {
+			t.Errorf("[%s] naive 시퀀스가 Target에 도달 못함\n  got:  %q\n  want: %q", c.id, got, want)
+			continue
+		}
+
+		naive := len(engine.ParseKeys(c.naive))
+		if float64(naive) <= float64(par)*1.5 {
+			t.Errorf("[%s] naive(%d)가 par(%d)*1.5=%.1f를 넘지 않음 — 효율 기법 없이도 2★ 이상 가능",
+				c.id, naive, par, float64(par)*1.5)
+		}
+	}
+}
+
 // TestNavigateBlocksEditing 은 navigate 레벨에서 편집키가 막히는지 확인한다.
 func TestNavigateBlocksEditing(t *testing.T) {
 	g := New() // 1-1
