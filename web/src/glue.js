@@ -27,6 +27,52 @@ let vqRenderer = null;
 let vqTickRunning = false;
 let vqLastState = null; // COPY 버튼이 읽는, 마지막으로 그린 스냅샷
 
+// ── 언어 상태(EN/KO) ─────────────────────────────────────────────────
+// 예전엔 매뉴얼(toggleLang)과 치트시트(toggleCheatLang)가 각자 독립된
+// on/off 상태를 들고 있어서, 한쪽만 한국어로 바꾸고 다른 쪽은 영어로
+// 남는 게 가능했다. 레벨 힌트 패널까지 한국어를 지원하게 되면서 셋을
+// 하나의 전역 상태로 묶는다 — 토글 1회로 매뉴얼·치트시트·힌트가 함께 바뀐다.
+let vqLang = 'en';
+
+function vqApplyLang() {
+  const showKo = vqLang === 'ko';
+
+  const manualEn = document.getElementById('manual-en');
+  const manualKo = document.getElementById('manual-ko');
+  const langBtn = document.getElementById('lang-btn');
+  const warn = document.getElementById('intro-warn');
+  if (manualEn && manualKo) {
+    manualEn.style.display = showKo ? 'none' : '';
+    manualKo.style.display = showKo ? '' : 'none';
+  }
+  if (langBtn) langBtn.textContent = showKo ? 'English' : '한국어';
+  if (warn) {
+    warn.textContent = showKo
+      ? '⚠ 키 입력은 영문 입력 상태에서만 동작합니다 (한/영 키 확인)'
+      : '⚠ Keys work only in English input mode (check your 한/영 key)';
+  }
+
+  const cheatEn = document.getElementById('cheat-en');
+  const cheatKo = document.getElementById('cheat-ko');
+  const cheatBtn = document.getElementById('cheat-lang-btn');
+  if (cheatEn && cheatKo) {
+    cheatEn.style.display = showKo ? 'none' : '';
+    cheatKo.style.display = showKo ? '' : 'none';
+  }
+  if (cheatBtn) cheatBtn.textContent = showKo ? 'English' : '한국어';
+
+  // 레벨 힌트 패널도 즉시 반영 — vqUpdatePanel 이 vqLang 을 읽어 LEVEL_META
+  // 또는 LEVEL_META_KO 를 고른다(마지막으로 그린 스냅샷 기준으로 재조회).
+  if (vqLastState) vqUpdatePanel(vqLastState);
+}
+
+// vqToggleLang 은 매뉴얼의 한국어 버튼과 치트시트의 한국어 버튼 양쪽이
+// 공유하는 단일 토글 진입점이다(index.html 의 onclick 이 호출).
+function vqToggleLang() {
+  vqLang = vqLang === 'en' ? 'ko' : 'en';
+  vqApplyLang();
+}
+
 // vqDraw 는 렌더러에 그리는 동시에 vqLastState 갱신·사이드패널 동기화까지
 // 하는 유일한 창구다 — COPY 버튼(vqCopySolution)이 마지막 클리어 화면
 // 데이터를 읽고, 캔버스 밖 UI(#level-title/#hint/#status/#solve-cmds)가
@@ -106,7 +152,10 @@ function vqUpdatePanel(st) {
   }
 
   // playing / drill
-  const meta = (typeof LEVEL_META !== 'undefined' && LEVEL_META[st.id]) || null;
+  const metaTable = vqLang === 'ko'
+    ? (typeof LEVEL_META_KO !== 'undefined' ? LEVEL_META_KO : null)
+    : (typeof LEVEL_META !== 'undefined' ? LEVEL_META : null);
+  const meta = (metaTable && metaTable[st.id]) || null;
   vqSetText('level-title', meta ? meta.title : (st.title || ''));
   vqSetText('hint', meta ? meta.hint : (st.hint || ''));
   vqSetCmds(meta ? meta.cmds : []);

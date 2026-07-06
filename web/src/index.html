@@ -166,7 +166,7 @@
     <div class="win">
       <div class="winbar">
         <span class="t">MANUAL.txt</span>
-        <span><button class="btn sm" id="lang-btn" onclick="toggleLang()">한국어</button></span>
+        <span><button class="btn sm" id="lang-btn" onclick="vqToggleLang()">한국어</button></span>
       </div>
       <div class="winbody">
 <pre class="banner">
@@ -299,7 +299,7 @@
     <div class="win" onclick="event.stopPropagation()">
       <div class="winbar">
         <span class="t">CHEATSHEET.txt</span>
-        <span><button class="btn sm" id="cheat-lang-btn" onclick="event.stopPropagation(); toggleCheatLang()">한국어</button> <span class="r">esc to close</span></span>
+        <span><button class="btn sm" id="cheat-lang-btn" onclick="event.stopPropagation(); vqToggleLang()">한국어</button> <span class="r">esc to close</span></span>
       </div>
       <div class="winbody">
       <table id="cheat-en">
@@ -361,33 +361,10 @@
 
 <script src="../dist/wasm_exec.js"></script>
 <script src="levels_meta.js"></script><!-- 생성 파일(tools/genmeta) — 커리큘럼 표시 데이터, wasm 대신 여기서 -->
+<script src="levels_meta_ko.js"></script><!-- 손으로 관리하는 한국어 번역(생성 파일 아님) -->
 <script src="renderer.js"></script>
 <script src="glue.js"></script>
 <script>
-  function toggleLang(){
-    const en = document.getElementById('manual-en');
-    const ko = document.getElementById('manual-ko');
-    const btn = document.getElementById('lang-btn');
-    const warn = document.getElementById('intro-warn');
-    const showKo = en.style.display !== 'none';
-    en.style.display = showKo ? 'none' : '';
-    ko.style.display = showKo ? '' : 'none';
-    btn.textContent = showKo ? 'English' : '한국어';
-    warn.textContent = showKo
-      ? '⚠ 키 입력은 영문 입력 상태에서만 동작합니다 (한/영 키 확인)'
-      : '⚠ Keys work only in English input mode (check your 한/영 key)';
-  }
-
-  function toggleCheatLang(){
-    const en = document.getElementById('cheat-en');
-    const ko = document.getElementById('cheat-ko');
-    const btn = document.getElementById('cheat-lang-btn');
-    const showKo = en.style.display !== 'none';
-    en.style.display = showKo ? 'none' : '';
-    ko.style.display = showKo ? '' : 'none';
-    btn.textContent = showKo ? 'English' : '한국어';
-  }
-
   function toggleCrt(){
     document.body.classList.toggle('crt-off');
     const off = document.body.classList.contains('crt-off');
@@ -454,33 +431,42 @@
   // reset the typewriter mid-animation, forever.
   (function setupTypewriter(){
     const hintEl = document.getElementById('hint');
-    let typing = false;
     let lastText = hintEl.textContent;
+    let iv = null;
+
+    function reconnect(){
+      clearInterval(iv);
+      iv = null;
+      lastText = hintEl.textContent;
+      observer.observe(hintEl, { childList: true, characterData: true, subtree: true });
+    }
+
+    function typeOut(text){
+      if (iv) clearInterval(iv);
+      observer.disconnect();
+      hintEl.textContent = '';
+      let i = 0;
+      iv = setInterval(() => {
+        // 애니메이션 도중 다른 곳(예: 언어 토글)이 hintEl 을 직접 덮어썼다면
+        // 지금까지 타이핑한 접두사와 더 이상 일치하지 않는다 — 그 위에
+        // 이어 붙이면 새 텍스트 뒤에 옛 텍스트 조각이 남는 버그가 생기므로
+        // (실제로 vqLang 토글 중 재현 확인) 조용히 중단하고 관찰만 재개한다.
+        if (hintEl.textContent !== text.slice(0, i)) {
+          reconnect();
+          return;
+        }
+        hintEl.textContent += text[i] || '';
+        i++;
+        if (i >= text.length) reconnect();
+      }, 18);
+    }
 
     const observer = new MutationObserver(() => {
-      if (typing) return;
       const newText = hintEl.textContent;
       if (newText === lastText) return;
       lastText = newText;
       typeOut(newText);
     });
-
-    function typeOut(text){
-      typing = true;
-      observer.disconnect();
-      hintEl.textContent = '';
-      let i = 0;
-      const iv = setInterval(() => {
-        hintEl.textContent += text[i] || '';
-        i++;
-        if (i >= text.length){
-          clearInterval(iv);
-          typing = false;
-          lastText = hintEl.textContent;
-          observer.observe(hintEl, { childList: true, characterData: true, subtree: true });
-        }
-      }, 18);
-    }
 
     observer.observe(hintEl, { childList: true, characterData: true, subtree: true });
   })();
