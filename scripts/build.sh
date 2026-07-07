@@ -33,7 +33,7 @@ echo "▶ wasm_exec.js 동기화..."
 cp "$(tinygo env TINYGOROOT)/targets/wasm_exec.js" web/dist/wasm_exec.js
 
 echo "▶ 페이로드 크기 확인 중..."
-total_gzip=$(cat web/dist/game.wasm web/dist/wasm_exec.js web/src/levels_meta.js web/src/renderer.js web/src/glue.js web/src/index.html | gzip -9 | wc -c | tr -d ' ')
+total_gzip=$(cat web/dist/game.wasm web/dist/wasm_exec.js web/src/levels_meta.js web/src/levels_meta_ko.js web/src/renderer.js web/src/glue.js web/src/index.html | gzip -9 | wc -c | tr -d ' ')
 wasm_bytes=$(wc -c < web/dist/game.wasm | tr -d ' ')
 
 echo "  game.wasm      : $((wasm_bytes / 1024)) KB (raw)"
