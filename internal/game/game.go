@@ -31,6 +31,8 @@ const (
 	StateAllClear
 	StateDrill
 	StateDrillSummary // :drill 세션을 ":q"/":levels" 로 빠져나갈 때의 통계 요약 화면
+	StateArena        // Arena 시간공격 — 고정 5문제 연속 플레이(arena_levels.go)
+	StateArenaDone    // Arena 완주 — 제출 UI(DOM 오버레이)가 화면을 소유한다
 )
 
 // Game 은 한 판의 전체 상태. 상태를 바꾸는 공개 경로는 Input()/Tick() 과
@@ -65,6 +67,8 @@ type Game struct {
 	drillStreak    int
 	drillTotalKeys int
 	drillTotalPar  int
+
+	arenaIdx int // ArenaLevels 진행 위치 — 시간 필드는 없다(시간은 JS 소유)
 }
 
 // New 는 저장된 진행을 복원하고 첫 레벨을 로드한 게임을 만든다.
@@ -233,9 +237,15 @@ func (g *Game) feedEx(k engine.Key) {
 // :drill 인식 분기가 빠진 채로 똑같은 버그(드릴 중 리셋하면 커리큘럼으로
 // 튕겨나감)를 반복한 적이 있다.
 func (g *Game) RestartCurrent() {
-	if g.state == StateDrill {
-		g.loadLevelData(g.lv) // 같은 드릴 문제를 strokes=0 으로 재시작(다음 문제로 넘기지 않는다)
-	} else {
+	switch g.state {
+	case StateDrill, StateArena:
+		g.loadLevelData(g.lv) // 같은 문제를 strokes=0 으로 재시작(다음 문제로 넘기지 않는다)
+	case StateArenaDone:
+		// 완주 화면의 RESET = 런 전체 재시작. else 로 흘리면 LoadLevel 이
+		// 남아있는 levelIdx 기준 커리큘럼 레벨로 튕겨나간다 — 드릴 중 리셋
+		// 버그(위 주석)와 정확히 같은 계열의 누수라 여기서 원천 차단한다.
+		g.EnterArena()
+	default:
 		g.LoadLevel(g.levelIdx)
 	}
 }
@@ -258,6 +268,12 @@ func (g *Game) runExCommand(cmd string) {
 	case cmd == "help":
 		platform.ShowOverlay("intro")
 	case cmd == "drill" || strings.HasPrefix(cmd, "drill "):
+		// 아레나 도중 모드 전환은 무시한다(미인식 명령과 같은 무반응 원칙) —
+		// 허용하면 아레나 패널·타이머 아래에 드릴이 깔리는 화면 분열이 생긴다.
+		// 런 포기는 :q(레벨 선택 이탈) 하나만 열어 둔다.
+		if g.state == StateArena {
+			return
+		}
 		// ":drill w"/":drill f"/":drill x" — 인자별로 다른 생성기(drill.go).
 		g.enterDrill(strings.TrimSpace(strings.TrimPrefix(cmd, "drill")))
 	default:
@@ -333,7 +349,10 @@ func (g *Game) Input(k engine.Key) {
 		if k.S == "cr" || k.S == "esc" {
 			g.EnterLevelSelect()
 		}
-	default: // StatePlaying / StateDrill
+	case StateArenaDone:
+		// 이 화면은 DOM 오버레이(ID 입력·제출·리더보드)가 소유한다 — 키를
+		// 그냥 삼켜서 편집 버퍼나 다른 상태로 새지 않게 한다.
+	default: // StatePlaying / StateDrill / StateArena
 		g.feed(k)
 		g.checkWin()
 	}
@@ -410,11 +429,7 @@ func (g *Game) checkWin() {
 		}
 		cell := g.cellAt(g.ed.Row(), g.ed.Col())
 		if len(g.keyPos) == 0 && g.PestsLeft() == 0 && cell == '$' {
-			if g.state == StateDrill {
-				g.advanceDrill()
-			} else {
-				g.advance()
-			}
+			g.advanceCurrent()
 		}
 		return
 	}
@@ -428,7 +443,23 @@ func (g *Game) checkWin() {
 			return
 		}
 	}
-	g.advance()
+	g.advanceCurrent()
+}
+
+// advanceCurrent 는 클리어를 현재 모드의 전용 진행 경로로 보내는 단일
+// 분기점이다. 세션 한정 모드(:drill/Arena)가 advance()→recordClear() 로
+// 커리큘럼 진행을 오염시키지 않는다는 보장이 여기 한 곳에 모인다 — 예전처럼
+// navigate/edit 분기가 각자 모드를 나열하면 새 모드·새 Kind 조합마다 한쪽을
+// 빠뜨리는 실수가 반복된다(edit 드릴/navigate 아레나가 정확히 그 구멍이었다).
+func (g *Game) advanceCurrent() {
+	switch g.state {
+	case StateDrill:
+		g.advanceDrill()
+	case StateArena:
+		g.advanceArena()
+	default:
+		g.advance()
+	}
 }
 
 // advance 는 현재 레벨의 클리어 통계를 스냅샷하고 진행 상황을 저장한 뒤

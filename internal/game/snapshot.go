@@ -32,6 +32,13 @@ func (g *Game) Snapshot() map[string]any {
 		base["worldCount"] = len(WorldGroups())
 		return base
 
+	case StateArenaDone:
+		// 최종 시간·제출 UI 는 전부 JS/DOM 몫 — 여기선 완주 사실과 문제 수만
+		// 내려보낸다(시간은 Go 어디에도 없다).
+		base["state"] = "arenaDone"
+		base["arenaCount"] = len(ArenaLevels)
+		return base
+
 	case StateDrillSummary:
 		base["state"] = "drillSummary"
 		base["drillKind"] = g.drillKind
@@ -81,7 +88,7 @@ func (g *Game) Snapshot() map[string]any {
 		return base
 	}
 
-	// StatePlaying / StateDrill
+	// StatePlaying / StateDrill / StateArena
 	base["state"] = "playing"
 	if g.state == StateDrill {
 		base["state"] = "drill"
@@ -90,6 +97,15 @@ func (g *Game) Snapshot() map[string]any {
 			"streak":    g.drillStreak,
 			"totalKeys": g.drillTotalKeys,
 			"totalPar":  g.drillTotalPar,
+		}
+	}
+	if g.state == StateArena {
+		// edit 레벨이므로 아래의 target/matchedRows 가 그대로 실린다 —
+		// 렌더러는 drawPlaying 재사용에 이 블록(num/count)만 더 읽으면 된다.
+		base["state"] = "arena"
+		base["arena"] = map[string]any{
+			"num":   g.arenaIdx + 1,
+			"count": len(ArenaLevels),
 		}
 	}
 	base["kind"] = g.lv.Kind
