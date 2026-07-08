@@ -55,7 +55,8 @@ class Renderer {
       case 'clear': return this.drawLevelClear(st);
       case 'select': return this.drawLevelSelect(st);
       case 'drillSummary': return this.drawDrillSummary(st);
-      default: return this.drawPlaying(st);
+      case 'arenaDone': return this.drawArenaDone(st);
+      default: return this.drawPlaying(st); // playing / drill / arena
     }
   }
 
@@ -97,9 +98,13 @@ class Renderer {
   drawPlaying(st) {
     this.clear();
     // st.title 이 생성기별 유형을 이미 담고 있다("DRILL"/"DRILL [w]"/...).
-    let hud = st.drill
-      ? `${st.title}   streak ${st.drill.streak}`
-      : `level ${st.level}/${st.levelCount}`;
+    // 아레나는 문제 번호를 크게 — 라이브 타이머는 캔버스가 아니라
+    // #arena-panel(DOM)이 소유한다(시간은 JS 몫이라는 경계 유지).
+    let hud = st.arena
+      ? `ARENA  problem ${st.arena.num}/${st.arena.count}`
+      : st.drill
+        ? `${st.title}   streak ${st.drill.streak}`
+        : `level ${st.level}/${st.levelCount}`;
     hud += st.kind === 'navigate'
       ? `   keys ${st.keys}/${st.keysNeed}   bugs ${st.bugs}`
       : '   [EDIT]  transform LEFT to match RIGHT';
@@ -196,6 +201,15 @@ class Renderer {
     this.ch(`streak    : ${st.drillStreak}`, 340, 260, COL.text);
     this.ch(`keys/par  : ${st.drillTotalKeys}/${st.drillTotalPar} (${pct}%)`, 340, 290, COL.text);
     this.ch('[any key] back to level select', 340, 330, COL.muted);
+  }
+
+  // drawArenaDone — 최종 기록·제출·리더보드는 전부 #arena-panel(DOM)에
+  // 있으므로 캔버스는 완주 안내만 띄운다.
+  drawArenaDone(st) {
+    this.clear();
+    this.ch('ARENA COMPLETE!', 340, 250, COL.exit);
+    this.ch(`all ${st.arenaCount} problems solved.`, 340, 290, COL.text);
+    this.ch('submit your time in the ARENA panel above', 340, 330, COL.muted);
   }
 
   drawLevelSelect(st) {

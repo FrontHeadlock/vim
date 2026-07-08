@@ -73,6 +73,13 @@
     text-shadow:3px 3px 0 #0c1a10; }
   header p{ margin:12px 0 0; color:var(--muted); font-size:18px; }
 
+  /* ── tabs (TUTORIAL / ARENA) ── */
+  #tab-bar{ display:flex; gap:8px; margin:12px 0 0; width:960px; max-width:96vw; }
+  #tab-bar .btn.active{ background:var(--cyan); color:var(--bg2); }
+  #tab-bar .btn.g.active{ background:var(--green); color:var(--bg2); }
+  body.tab-arena #panel{ display:none; }
+  body:not(.tab-arena) #arena-panel{ display:none; }
+
   /* ── main status panel ── */
   #panel{ width:960px; max-width:96vw; margin:12px 0; }
   #level-title{ color:var(--yellow); font-size:23px; }
@@ -82,6 +89,27 @@
   #onboarding-tip{ margin-top:8px; font-size:17px; color:var(--cyan); }
   #onboarding-tip::before{ content:"› "; }
   #controls{ margin-top:14px; display:flex; gap:8px; flex-wrap:wrap; }
+
+  /* ── arena panel ── */
+  #arena-panel{ width:960px; max-width:96vw; margin:12px 0; }
+  #arena-status-line{ display:flex; justify-content:space-between; align-items:baseline; }
+  #arena-problem{ color:var(--yellow); font-size:23px; }
+  #arena-timer{ font-family:var(--code); font-size:22px; color:var(--green); }
+  #arena-hint{ margin-top:8px; font-size:19px; line-height:1.4; color:var(--text); }
+  #arena-controls{ margin-top:14px; display:flex; gap:8px; flex-wrap:wrap; }
+  #arena-done{ margin-top:14px; border-top:1px dashed var(--line); padding-top:12px; }
+  #arena-final{ color:var(--yellow); font-size:22px; }
+  .arena-submit-row{ margin-top:10px; display:flex; gap:8px; align-items:center; }
+  #arena-id{
+    font-family:var(--code); font-size:17px; padding:6px 10px; width:220px;
+    background:var(--bg2); color:var(--text); border:2px solid var(--line); outline:none;
+  }
+  #arena-id:focus{ border-color:var(--cyan); }
+  #arena-msg{ margin-top:8px; font-size:17px; color:var(--muted); min-height:20px; }
+  #arena-lb{ margin-top:10px; width:100%; border-collapse:collapse; font-size:18px; }
+  #arena-lb td, #arena-lb th{ padding:4px 6px; border-bottom:1px solid #313744; text-align:left; }
+  #arena-lb th{ color:var(--yellow); font-family:var(--pixel); font-size:10px; }
+  #arena-lb td.ms{ font-family:var(--code); font-size:15px; color:var(--green); }
 
   /* ── game canvas frame ── */
   /* image-rendering 은 body 에서도 상속되지만, 캔버스 자체 배율 축소 시
@@ -270,6 +298,11 @@
     Switch to <b>English input</b> (the 한/영 key) — keys won't work otherwise.
   </div>
 
+  <nav id="tab-bar">
+    <button class="btn sm active" id="tab-tutorial" onclick="vqSwitchTab('tutorial')">TUTORIAL</button>
+    <button class="btn sm g" id="tab-arena" onclick="vqSwitchTab('arena')">ARENA</button>
+  </nav>
+
   <div id="panel" class="win">
     <div class="winbar"><span class="t">STAGE</span><span class="r">hjkl = ← ↓ ↑ →</span></div>
     <div class="winbody">
@@ -287,6 +320,33 @@
         <button class="btn" id="mute-btn" onclick="toggleMute()">🔊 SOUND</button>
         <button class="btn" id="crt-btn" onclick="toggleCrt()">▤ CRT ON</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Arena: 시간공격 패널 — 캔버스는 튜토리얼과 공유하고, 타이머/제출/
+       리더보드 등 시간·네트워크가 얽힌 UI 는 전부 순수 DOM(glue.js)이다. -->
+  <div id="arena-panel" class="win">
+    <div class="winbar"><span class="t">ARENA</span><span class="r">time attack · same 5 problems for everyone</span></div>
+    <div class="winbody">
+      <div id="arena-status-line">
+        <span id="arena-problem">READY</span>
+        <span id="arena-timer">0.0s</span>
+      </div>
+      <div id="arena-hint">Race through 5 fixed real-world Vim edits. The clock starts the moment you press START — no pause, resets don't stop it. Fastest total time wins.</div>
+      <div id="arena-controls">
+        <button class="btn g" onclick="vqArenaStartClick()">▶ START</button>
+        <button class="btn" onclick="vqCallAndDraw(window.vimquestReset)">↺ RESET PROBLEM</button>
+        <button class="btn y" onclick="vqArenaFetchBoard()">🏆 LEADERBOARD</button>
+      </div>
+      <div id="arena-done" style="display:none">
+        <div id="arena-final"></div>
+        <div class="arena-submit-row">
+          <input id="arena-id" maxlength="32" placeholder="your id" autocomplete="off">
+          <button class="btn y" onclick="vqArenaSubmit()">⬆ SUBMIT</button>
+        </div>
+      </div>
+      <div id="arena-msg"></div>
+      <table id="arena-lb"></table>
     </div>
   </div>
 

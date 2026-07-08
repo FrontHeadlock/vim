@@ -55,5 +55,29 @@ func Run() {
 		return toJS(vq.Snapshot())
 	}))
 
+	// Arena 진입 — 시간 측정·제출은 전부 JS(glue.js) 몫이고, wasm 경계는
+	// 이 진입 호출 하나만 넓어진다(네트워킹은 wasm 을 거치지 않는다).
+	js.Global().Set("vqArenaStart", js.FuncOf(func(js.Value, []js.Value) any {
+		vq.EnterArena()
+		return toJS(vq.Snapshot())
+	}))
+
+	// index.html 의 RESET/RESTART/LEVELS 버튼이 부르는 훅 3종 — 패키지 재편
+	// (91712dc) 때 옛 web_js.go 와 함께 유실됐던 것을 복원한다. 의미는 유실
+	// 이전과 동일: RESET = 지금 하던 것을 strokes=0 으로(드릴/아레나 인식),
+	// RESTART = 1-1 부터, LEVELS = 레벨 선택.
+	js.Global().Set("vimquestReset", js.FuncOf(func(js.Value, []js.Value) any {
+		vq.RestartCurrent()
+		return toJS(vq.Snapshot())
+	}))
+	js.Global().Set("vimquestRestart", js.FuncOf(func(js.Value, []js.Value) any {
+		vq.LoadLevel(0)
+		return toJS(vq.Snapshot())
+	}))
+	js.Global().Set("vimquestLevelSelect", js.FuncOf(func(js.Value, []js.Value) any {
+		vq.EnterLevelSelect()
+		return toJS(vq.Snapshot())
+	}))
+
 	select {}
 }

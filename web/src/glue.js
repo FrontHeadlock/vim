@@ -124,6 +124,7 @@ function vqDraw(st) {
   vqLastState = st;
   vqRenderer.draw(st);
   vqUpdatePanel(st);
+  vqArenaOnState(st);
 }
 
 // ── 사이드패널 동기화 ─────────────────────────────────────────────────
@@ -192,6 +193,8 @@ function vqUpdatePanel(st) {
       vqSetText('status', `streak ${st.drillStreak}   ·   keys ${st.drillTotalKeys}/${st.drillTotalPar}`);
       vqSetCmds([]);
       return;
+    case 'arenaDone':
+      return; // 완주 UI 는 #arena-panel(vqArenaOnState)이 소유 — 튜토리얼 패널은 손대지 않는다
   }
 
   // playing / drill
@@ -263,6 +266,10 @@ function vqCopySolution() {
 
 function vqHandleKey(e) {
   if (e.isComposing || e.keyCode === 229) return;
+  // Arena 의 ID <input> 등 폼 요소에 포커스가 있으면 게임으로 보내지 않는다 —
+  // preventDefault 가 타이핑 자체를 먹어버린다.
+  const tgt = e.target;
+  if (tgt && (tgt.tagName === 'INPUT' || tgt.tagName === 'TEXTAREA')) return;
   let tok = null;
   if (e.key === 'Enter') tok = '<cr>';
   else if (e.key === 'Escape') tok = '<esc>';
@@ -293,6 +300,176 @@ function vqHandleKey(e) {
   }
   vqDraw(st); // vqDraw 경유 — vqLastState(COPY 버튼)와 사이드패널이 함께 갱신된다
   if (st.effectsAlive) vqStartTick();
+}
+
+// ── Arena(시간공격) ──────────────────────────────────────────────────
+// 시간 측정은 여기(JS performance.now())가 전부다 — Go/엔진엔 wall-clock
+// 개념이 없고, 서버는 클라이언트가 신고한 시간을 그대로 신뢰한다(사용자가
+// 명시적으로 선택한 단순화). 네트워킹도 wasm 을 거치지 않는 순수 fetch.
+
+// 프론트가 python http.server(다른 origin)로 뜨는 개발 배치가 기본이라
+// API 베이스는 절대 URL — 배포 시엔 window.VQ_ARENA_API 로 덮어쓴다.
+const vqArenaApi = window.VQ_ARENA_API || 'http://localhost:8080';
+const vqArenaIdKey = 'vimquest.arena.id'; // 진행률 키(vimquest.v2)와 분리
+
+let vqArenaT0 = 0;         // START 시각(performance.now) — 0 이면 계측 중 아님
+let vqArenaFinalMs = null; // arenaDone 프레임에 딱 한 번 얼린 최종 기록
+let vqArenaTimerOn = false; // rAF 루프 중복 기동 방지(vqTickRunning 과 같은 관례)
+
+function vqArenaFmt(ms) {
+  return (ms / 1000).toFixed(1) + 's';
+}
+
+// 계측 중에만 rAF 로 타이머 표시를 갱신한다(vqStartTick 과 같은 원칙 —
+// 상시 루프 없음, 한 번에 한 루프만).
+function vqArenaTimerLoop() {
+  if (!vqArenaT0) {
+    vqArenaTimerOn = false;
+    return;
+  }
+  const el = document.getElementById('arena-timer');
+  if (el) el.textContent = vqArenaFmt(performance.now() - vqArenaT0);
+  requestAnimationFrame(vqArenaTimerLoop);
+}
+
+function vqArenaTimerStart() {
+  if (vqArenaTimerOn) return;
+  vqArenaTimerOn = true;
+  requestAnimationFrame(vqArenaTimerLoop);
+}
+
+function vqArenaStartClick() {
+  if (typeof vqArenaStart !== 'function') return; // wasm 로드 전
+  vqArenaT0 = 0; // 진행 중이던 계측 폐기 — 아래 관찰 훅이 새 런의 시계를 개시한다
+  vqCallAndDraw(window.vqArenaStart);
+  const c = document.getElementById('game');
+  if (c) c.focus();
+}
+
+// vqArenaOnState 는 vqDraw 를 지나는 모든 스냅샷을 관찰한다 — 계측의 개시/
+// 폐기/동결을 전부 게임 상태 전이에서만 결정하는 단일 지점이다. 버튼별로
+// 시계를 만지면 START 밖의 진입 경로(완주 화면 RESET = Go 쪽 EnterArena)가
+// 생길 때마다 시계가 새는 버그가 재발한다.
+function vqArenaOnState(st) {
+  if (st.state === 'arena' && st.arena) {
+    if (!vqArenaT0) {
+      // 새 런 개시 — 완주 잔해(동결 기록·제출 폼·메시지)를 치우고 계측 시작.
+      vqArenaT0 = performance.now();
+      vqArenaFinalMs = null;
+      const done = document.getElementById('arena-done');
+      if (done) done.style.display = 'none';
+      const msg = document.getElementById('arena-msg');
+      if (msg) msg.textContent = '';
+      vqArenaTimerStart();
+    }
+    const el = document.getElementById('arena-problem');
+    if (el) el.textContent = `PROBLEM ${st.arena.num} / ${st.arena.count}`;
+    return;
+  }
+  // 아레나 계열 밖으로 나갔는데 계측이 살아있으면(예: 도중 :q 로 레벨 선택
+  // 이탈) 폐기한다 — 안 그러면 rAF 타이머가 세션 내내 돌고, 다음 완주가
+  // 이탈 이전 시각 기준으로 얼려져 엉뚱한 기록이 제출된다.
+  if (st.state !== 'arenaDone' && vqArenaT0) {
+    vqArenaT0 = 0;
+    const p = document.getElementById('arena-problem');
+    const tm = document.getElementById('arena-timer');
+    if (p) p.textContent = 'READY';
+    if (tm) tm.textContent = '0.0s';
+    return;
+  }
+  if (st.state === 'arenaDone' && vqArenaT0) {
+    vqArenaFinalMs = Math.round(performance.now() - vqArenaT0);
+    vqArenaT0 = 0; // rAF 루프 자연 종료
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    set('arena-problem', 'FINISHED!');
+    set('arena-timer', vqArenaFmt(vqArenaFinalMs));
+    set('arena-final', `YOUR TIME: ${vqArenaFmt(vqArenaFinalMs)}`);
+    const done = document.getElementById('arena-done');
+    if (done) done.style.display = '';
+    const idEl = document.getElementById('arena-id');
+    const saved = localStorage.getItem(vqArenaIdKey);
+    if (idEl && saved) idEl.value = saved;
+    vqArenaFetchBoard();
+  }
+}
+
+function vqArenaSubmit() {
+  const idEl = document.getElementById('arena-id');
+  const msg = document.getElementById('arena-msg');
+  const id = idEl ? idEl.value.trim() : '';
+  if (vqArenaFinalMs == null) return;
+  if (!id) {
+    if (msg) msg.textContent = 'enter an id first';
+    return;
+  }
+  localStorage.setItem(vqArenaIdKey, id);
+  if (msg) msg.textContent = 'submitting…';
+  fetch(vqArenaApi + '/api/arena/score', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, ms: vqArenaFinalMs }),
+  })
+    .then((r) => r.json())
+    .then((res) => {
+      if (res && res.ok) {
+        if (msg) msg.textContent = `saved — best ${vqArenaFmt(res.best_ms)} · rank #${res.rank}`;
+        return vqArenaFetchBoard();
+      }
+      if (msg) msg.textContent = 'rejected: ' + ((res && res.error) || 'unknown error');
+    })
+    .catch(() => {
+      if (msg) msg.textContent = 'server unreachable — start it with: go run ./cmd/server';
+    });
+}
+
+function vqArenaFetchBoard() {
+  fetch(vqArenaApi + '/api/arena/leaderboard?limit=10')
+    .then((r) => r.json())
+    .then((res) => vqArenaRenderBoard((res && res.scores) || []))
+    .catch(() => {
+      const msg = document.getElementById('arena-msg');
+      if (msg) msg.textContent = 'server unreachable — start it with: go run ./cmd/server';
+    });
+}
+
+function vqArenaRenderBoard(scores) {
+  const tbl = document.getElementById('arena-lb');
+  if (!tbl) return;
+  tbl.textContent = '';
+  if (!scores.length) return;
+  const head = tbl.insertRow();
+  for (const h of ['RANK', 'ID', 'TIME']) {
+    const th = document.createElement('th');
+    th.textContent = h;
+    head.append(th);
+  }
+  for (const s of scores) {
+    const row = tbl.insertRow();
+    row.insertCell().textContent = '#' + s.rank;
+    row.insertCell().textContent = s.id;
+    const ms = row.insertCell();
+    ms.textContent = vqArenaFmt(s.ms);
+    ms.className = 'ms';
+  }
+}
+
+// vqSwitchTab 은 TUTORIAL/ARENA 패널 표시를 전환한다. 캔버스는 공유 —
+// ARENA 탭은 START 전까지 게임 상태를 건드리지 않고, 아레나 도중 TUTORIAL
+// 로 돌아가면 진행 중 계측을 폐기하고 레벨 선택으로 복귀시킨다(아레나
+// 상태의 캔버스가 튜토리얼 패널 뒤에 남아 헷갈리지 않게).
+function vqSwitchTab(tab) {
+  const arena = tab === 'arena';
+  document.body.classList.toggle('tab-arena', arena);
+  const tt = document.getElementById('tab-tutorial');
+  const ta = document.getElementById('tab-arena');
+  if (tt) tt.classList.toggle('active', !arena);
+  if (ta) ta.classList.toggle('active', arena);
+  if (!arena && vqLastState && (vqLastState.state === 'arena' || vqLastState.state === 'arenaDone')) {
+    vqArenaT0 = 0;
+    vqCallAndDraw(window.vimquestLevelSelect);
+  }
+  const c = document.getElementById('game');
+  if (c) c.focus();
 }
 
 // vqInit 은 wasm 로드가 끝난 뒤(go.run 이후) 호출한다 — vqInput/vqState/vqTick
