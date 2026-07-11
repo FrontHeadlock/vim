@@ -26,11 +26,23 @@ const (
 // CORS 헤더를 실어 보낸다 — 보호할 세션/쿠키가 애초에 없고, 개발 배치에선
 // 프론트(python http.server)와 이 서버가 서로 다른 origin 이기 때문이다.
 func NewHandler(db *sql.DB) http.Handler {
+	return NewHandlerAt(db, time.Now)
+}
+
+// NewHandlerAt 은 시계를 주입받는 NewHandler — 일일 보드의 날짜 경계
+// ("자정에 리셋")를 테스트가 시계를 돌려 검증할 수 있게 한다. 프로덕션은
+// NewHandler(time.Now) 하나뿐이다.
+func NewHandlerAt(db *sql.DB, now func() time.Time) http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/arena/score", handleScore(db))
-	mux.HandleFunc("/api/arena/leaderboard", handleLeaderboard(db))
+	mux.HandleFunc("/api/arena/score", handleScore(db, now))
+	mux.HandleFunc("/api/arena/leaderboard", handleLeaderboard(db, now))
 	return withCORS(mux)
 }
+
+// dayOf 는 일일 보드의 파티션 키. 서버 로컬 타임존 기준 — "오늘"의 정의는
+// 신고 시간과 달리 서버가 소유한다(클라이언트가 날짜를 고를 수 있으면 지난
+// 보드에 소급 제출이 가능해진다).
+func dayOf(t time.Time) string { return t.Format("2006-01-02") }
 
 func withCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -60,7 +72,7 @@ type scoreReq struct {
 	MS int64  `json:"ms"`
 }
 
-func handleScore(db *sql.DB) http.HandlerFunc {
+func handleScore(db *sql.DB, now func() time.Time) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			writeError(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -90,12 +102,18 @@ func handleScore(db *sql.DB) http.HandlerFunc {
 			return
 		}
 
-		// upsert→best→rank 세 쿼리는 트랜잭션이 아니다 — 동시 제출이 사이에
+		// upsert→best→rank 쿼리들은 트랜잭션이 아니다 — 동시 제출이 사이에
 		// 끼면 rank 가 한두 계단 어긋날 수 있다. 클라이언트 신고 시간을 그대로
 		// 믿는 이 서버의 신뢰 모델에서 원자성은 살 가치가 없는 보증이라 의도적
 		// 으로 두는 것이지, 원자적이라고 착각해서가 아니다.
-		now := time.Now().UnixMilli()
-		if err := upsertScore(db, id, req.MS, now); err != nil {
+		t := now()
+		nowMillis := t.UnixMilli()
+		day := dayOf(t)
+		if err := upsertScore(db, id, req.MS, nowMillis); err != nil {
+			writeError(w, http.StatusInternalServerError, "store failed")
+			return
+		}
+		if err := upsertDailyScore(db, day, id, req.MS, nowMillis); err != nil {
 			writeError(w, http.StatusInternalServerError, "store failed")
 			return
 		}
@@ -130,11 +148,44 @@ func handleScore(db *sql.DB) http.HandlerFunc {
 			out["next_id"] = nid
 			out["next_gap_ms"] = gap
 		}
+		daily, err := dailyContext(db, day, id)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "store failed")
+			return
+		}
+		out["daily"] = daily
 		writeJSON(w, http.StatusOK, out)
 	}
 }
 
-func handleLeaderboard(db *sql.DB) http.HandlerFunc {
+// dailyContext 는 제출 응답의 daily 블록 — all-time 컨텍스트와 같은 구성
+// (best/rank/total/next)에 파티션 키(day)를 더한 것. 오늘 보드는 매일
+// 비워진 채 열리므로 순위가 낮은 플레이어도 "오늘의 1위"를 노릴 수 있다 —
+// 그게 이 블록이 존재하는 이유다.
+func dailyContext(db *sql.DB, day, id string) (map[string]any, error) {
+	best, err := dailyBestFor(db, day, id)
+	if err != nil {
+		return nil, err
+	}
+	rank, err := dailyRankOf(db, day, id)
+	if err != nil {
+		return nil, err
+	}
+	total, err := dailyTotalPlayers(db, day)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]any{"day": day, "best_ms": best, "rank": rank, "total": total}
+	if nid, gap, ok, err := dailyNextTarget(db, day, best); err != nil {
+		return nil, err
+	} else if ok {
+		out["next_id"] = nid
+		out["next_gap_ms"] = gap
+	}
+	return out, nil
+}
+
+func handleLeaderboard(db *sql.DB, now func() time.Time) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			writeError(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -149,25 +200,60 @@ func handleLeaderboard(db *sql.DB) http.HandlerFunc {
 		if limit < minLim || limit > maxLim {
 			limit = defaultLim
 		}
-		scores, err := topScores(db, limit)
+		// ?board=daily → 오늘 파티션. 그 외(미지정 포함)는 all-time —
+		// 기존 소비자와의 호환을 위해 기본값은 all-time 이다.
+		daily := r.URL.Query().Get("board") == "daily"
+		day := dayOf(now())
+
+		var scores []Score
+		var total int
+		var err error
+		if daily {
+			scores, err = dailyTopScores(db, day, limit)
+		} else {
+			scores, err = topScores(db, limit)
+		}
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "store failed")
 			return
 		}
-		total, err := totalPlayers(db)
+		if daily {
+			total, err = dailyTotalPlayers(db, day)
+		} else {
+			total, err = totalPlayers(db)
+		}
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "store failed")
 			return
 		}
 		out := map[string]any{"scores": scores, "total": total}
+		if daily {
+			out["day"] = day
+			// 어제의 챔피언 — 리셋된 빈 보드에도 "어제는 누가 이겼는지"가
+			// 보여야 오늘 다시 겨룰 이유가 생긴다. 어제 기록이 없으면 생략.
+			if champ, ok, err := dayChampion(db, dayOf(now().AddDate(0, 0, -1))); err != nil {
+				writeError(w, http.StatusInternalServerError, "store failed")
+				return
+			} else if ok {
+				out["yesterday"] = champ
+			}
+		}
 		// ?me=<id> — 상위 limit 밖의 참가자도 자기 순위 행을 받아볼 수 있게
 		// 한다("내가 지금 몇 등인지"가 보여야 추격할 마음이 생긴다). 없는
 		// id 는 조용히 생략 — 검증 에러가 아니라 "아직 기록 없음"이다.
 		if me := strings.TrimSpace(r.URL.Query().Get("me")); me != "" {
-			if s, ok, err := scoreFor(db, me); err != nil {
+			var s Score
+			var ok bool
+			if daily {
+				s, ok, err = dailyScoreFor(db, day, me)
+			} else {
+				s, ok, err = scoreFor(db, me)
+			}
+			if err != nil {
 				writeError(w, http.StatusInternalServerError, "store failed")
 				return
-			} else if ok {
+			}
+			if ok {
 				out["me"] = s
 			}
 		}

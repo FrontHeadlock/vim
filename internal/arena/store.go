@@ -25,6 +25,19 @@ CREATE TABLE IF NOT EXISTS arena_scores (
 	updated_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_arena_best ON arena_scores(best_ms ASC);
+
+-- 일일 보드 — day("2006-01-02", 서버 로컬 타임존) 파티션. "매일 리셋"은
+-- 삭제나 크론이 아니라 자정에 day 키가 바뀌며 빈 파티션이 열리는 것이고,
+-- 지난 파티션은 그대로 남아 "어제의 챔피언" 조회에 쓰인다. all-time 테이블
+-- (위)은 손대지 않아 기존 DB 와 그대로 호환된다.
+CREATE TABLE IF NOT EXISTS arena_daily_scores (
+	day        TEXT NOT NULL,
+	player_id  TEXT NOT NULL,
+	best_ms    INTEGER NOT NULL,
+	updated_at INTEGER NOT NULL,
+	PRIMARY KEY (day, player_id)
+);
+CREATE INDEX IF NOT EXISTS idx_arena_daily_best ON arena_daily_scores(day, best_ms ASC);
 `
 
 // OpenDB 는 path 의 SQLite DB 를 열고(없으면 생성) 스키마를 보장한다.
@@ -127,6 +140,108 @@ func scoreFor(db *sql.DB, id string) (Score, bool, error) {
 	return Score{Rank: rank, ID: id, MS: best}, true, nil
 }
 
+// ── 일일 보드 질의 — all-time 질의와 동형이되 day 파티션 위에서 돈다.
+// SQL 을 테이블명 조립으로 공유하지 않고 그대로 두 벌 둔다: 질의가 전부
+// 정적이고 짧아, 여기서는 중복이 곧 명확성이다(렌더러 팔레트 사본과 같은
+// 인지된 트레이드오프).
+
+func upsertDailyScore(db *sql.DB, day, id string, ms, nowMillis int64) error {
+	_, err := db.Exec(`
+		INSERT INTO arena_daily_scores(day, player_id, best_ms, updated_at)
+		VALUES (?, ?, ?, ?)
+		ON CONFLICT(day, player_id) DO UPDATE SET
+			updated_at = CASE WHEN excluded.best_ms < arena_daily_scores.best_ms
+			                  THEN excluded.updated_at ELSE arena_daily_scores.updated_at END,
+			best_ms    = MIN(arena_daily_scores.best_ms, excluded.best_ms)
+	`, day, id, ms, nowMillis)
+	return err
+}
+
+func dailyBestFor(db *sql.DB, day, id string) (int64, error) {
+	var best int64
+	err := db.QueryRow(`
+		SELECT best_ms FROM arena_daily_scores WHERE day = ? AND player_id = ?
+	`, day, id).Scan(&best)
+	return best, err
+}
+
+func dailyRankOf(db *sql.DB, day, id string) (int, error) {
+	var rank int
+	err := db.QueryRow(`
+		SELECT COUNT(*) + 1 FROM arena_daily_scores
+		WHERE day = ? AND best_ms < (
+			SELECT best_ms FROM arena_daily_scores WHERE day = ? AND player_id = ?)
+	`, day, day, id).Scan(&rank)
+	return rank, err
+}
+
+func dailyTotalPlayers(db *sql.DB, day string) (int, error) {
+	var n int
+	err := db.QueryRow(`SELECT COUNT(*) FROM arena_daily_scores WHERE day = ?`, day).Scan(&n)
+	return n, err
+}
+
+func dailyNextTarget(db *sql.DB, day string, ms int64) (id string, gap int64, ok bool, err error) {
+	var best int64
+	err = db.QueryRow(`
+		SELECT player_id, best_ms FROM arena_daily_scores
+		WHERE day = ? AND best_ms < ? ORDER BY best_ms DESC, updated_at DESC LIMIT 1
+	`, day, ms).Scan(&id, &best)
+	if err == sql.ErrNoRows {
+		return "", 0, false, nil
+	}
+	if err != nil {
+		return "", 0, false, err
+	}
+	return id, ms - best, true, nil
+}
+
+func dailyScoreFor(db *sql.DB, day, id string) (Score, bool, error) {
+	best, err := dailyBestFor(db, day, id)
+	if err == sql.ErrNoRows {
+		return Score{}, false, nil
+	}
+	if err != nil {
+		return Score{}, false, err
+	}
+	rank, err := dailyRankOf(db, day, id)
+	if err != nil {
+		return Score{}, false, err
+	}
+	return Score{Rank: rank, ID: id, MS: best}, true, nil
+}
+
+func dailyTopScores(db *sql.DB, day string, limit int) ([]Score, error) {
+	rows, err := db.Query(`
+		SELECT player_id, best_ms FROM arena_daily_scores
+		WHERE day = ? ORDER BY best_ms ASC, updated_at ASC LIMIT ?
+	`, day, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanRanked(rows)
+}
+
+// dayChampion 은 해당 day 파티션의 1위(동률이면 먼저 세운 기록)를 돌려준다 —
+// "어제의 챔피언" 표시로 오늘의 재참여를 부추기는 용도. ok=false 면 그날
+// 기록이 없다.
+func dayChampion(db *sql.DB, day string) (Score, bool, error) {
+	var s Score
+	err := db.QueryRow(`
+		SELECT player_id, best_ms FROM arena_daily_scores
+		WHERE day = ? ORDER BY best_ms ASC, updated_at ASC LIMIT 1
+	`, day).Scan(&s.ID, &s.MS)
+	if err == sql.ErrNoRows {
+		return Score{}, false, nil
+	}
+	if err != nil {
+		return Score{}, false, err
+	}
+	s.Rank = 1
+	return s, true, nil
+}
+
 // topScores 는 빠른 순으로 상위 limit 개의 기록을 돌려준다.
 func topScores(db *sql.DB, limit int) ([]Score, error) {
 	rows, err := db.Query(`
@@ -137,10 +252,15 @@ func topScores(db *sql.DB, limit int) ([]Score, error) {
 		return nil, err
 	}
 	defer rows.Close()
+	return scanRanked(rows)
+}
 
-	// competition ranking(동률은 같은 순위, 다음 순위는 건너뜀) — rankOf 의
-	// COUNT(더 빠른 기록)+1 과 같은 정의다. 순차 번호를 매기면 동률일 때
-	// 제출 응답의 rank 와 리더보드 표시가 서로 어긋난다.
+// scanRanked 는 (player_id, best_ms) 오름차순 행들에 competition ranking
+// (동률은 같은 순위, 다음 순위는 건너뜀)을 매긴다 — rankOf/dailyRankOf 의
+// COUNT(더 빠른 기록)+1 과 같은 정의다. 순차 번호를 매기면 동률일 때 제출
+// 응답의 rank 와 보드 표시가 어긋나고, 두 보드가 이 루프를 각자 들면 정의가
+// 갈라질 수 있어 한 벌로 공유한다.
+func scanRanked(rows *sql.Rows) ([]Score, error) {
 	out := []Score{}
 	prevMS := int64(-1)
 	rank := 0

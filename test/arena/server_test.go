@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"vimquest/internal/arena"
 )
@@ -339,5 +340,109 @@ func TestLeaderboardMeContext(t *testing.T) {
 
 	if out := leaderboardRaw(t, srv, "?me=ghost"); out["me"] != nil {
 		t.Errorf("없는 id 의 me 가 생략되지 않음: %v", out["me"])
+	}
+}
+
+// newServerAt 은 주입한 시계로 도는 테스트 서버를 만든다 — 테스트가 *when
+// 을 바꿔 날짜 경계(자정 리셋)를 흉내 낸다.
+func newServerAt(t *testing.T, when *time.Time) *httptest.Server {
+	t.Helper()
+	db, err := arena.OpenDB(":memory:")
+	if err != nil {
+		t.Fatalf("OpenDB: %v", err)
+	}
+	t.Cleanup(func() { db.Close() })
+	srv := httptest.NewServer(arena.NewHandlerAt(db, func() time.Time { return *when }))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+// TestDailyBoardResetsAcrossDays 는 일일 보드의 핵심 보증을 확인한다 —
+// 자정이 지나면 (1) 오늘 보드는 빈 파티션으로 새로 열리고, (2) 어제의
+// 챔피언이 응답에 실리며, (3) all-time 보드는 그대로 남고, (4) 어제의 더
+// 빠른 기록이 오늘 순위에 영향을 주지 않는다.
+func TestDailyBoardResetsAcrossDays(t *testing.T) {
+	when := time.Date(2026, 7, 10, 12, 0, 0, 0, time.Local)
+	srv := newServerAt(t, &when)
+
+	submit(t, srv, `{"id":"leader","ms":40000}`)
+	submit(t, srv, `{"id":"chaser","ms":41000}`)
+
+	out := leaderboardRaw(t, srv, "?board=daily&me=chaser")
+	if out["day"] != "2026-07-10" {
+		t.Errorf("day=%v, want 2026-07-10", out["day"])
+	}
+	if n := len(out["scores"].([]any)); n != 2 {
+		t.Fatalf("당일 보드 %d명, want 2", n)
+	}
+	if _, has := out["yesterday"]; has {
+		t.Errorf("첫날인데 yesterday 가 있음: %v", out["yesterday"])
+	}
+	if me := out["me"].(map[string]any); me["rank"] != float64(2) {
+		t.Errorf("daily me rank=%v, want 2", me["rank"])
+	}
+
+	// ── 자정 경과 ──
+	when = time.Date(2026, 7, 11, 0, 30, 0, 0, time.Local)
+
+	out = leaderboardRaw(t, srv, "?board=daily")
+	if out["day"] != "2026-07-11" {
+		t.Errorf("이튿날 day=%v, want 2026-07-11", out["day"])
+	}
+	if n := len(out["scores"].([]any)); n != 0 {
+		t.Errorf("리셋 후 오늘 보드 %d명, want 0", n)
+	}
+	if out["total"] != float64(0) {
+		t.Errorf("리셋 후 total=%v, want 0", out["total"])
+	}
+	yday, ok := out["yesterday"].(map[string]any)
+	if !ok {
+		t.Fatalf("어제의 챔피언이 없음: %v", out)
+	}
+	if yday["id"] != "leader" || yday["ms"] != float64(40000) {
+		t.Errorf("어제의 챔피언=%v, want leader/40000", yday)
+	}
+
+	// all-time 은 리셋과 무관하게 남는다.
+	if n := len(leaderboard(t, srv, "")); n != 2 {
+		t.Errorf("리셋 후 all-time %d명, want 2", n)
+	}
+
+	// 오늘의 첫 제출 — 어제의 40000/41000 보다 느려도 오늘 보드에선 1위다.
+	_, sub := submit(t, srv, `{"id":"newbie","ms":50000}`)
+	daily := sub["daily"].(map[string]any)
+	if daily["rank"] != float64(1) || daily["total"] != float64(1) {
+		t.Errorf("이튿날 첫 제출 daily=%v, want rank1/total1", daily)
+	}
+	if _, has := daily["next_id"]; has {
+		t.Errorf("오늘 1위인데 daily.next_id 가 있음: %v", daily)
+	}
+	if sub["rank"] != float64(3) {
+		t.Errorf("all-time rank=%v, want 3(어제 기록들 뒤)", sub["rank"])
+	}
+}
+
+// TestSubmitDailyContext 는 제출 응답의 daily 블록 구성을 확인한다 —
+// all-time 컨텍스트와 같은 필드에 day 가 붙고, 추격 대상도 오늘 파티션
+// 기준으로 계산된다.
+func TestSubmitDailyContext(t *testing.T) {
+	when := time.Date(2026, 7, 10, 9, 0, 0, 0, time.Local)
+	srv := newServerAt(t, &when)
+
+	submit(t, srv, `{"id":"a","ms":40000}`)
+	_, out := submit(t, srv, `{"id":"b","ms":41500}`)
+
+	daily, ok := out["daily"].(map[string]any)
+	if !ok {
+		t.Fatalf("daily 블록이 없음: %v", out)
+	}
+	if daily["day"] != "2026-07-10" || daily["best_ms"] != float64(41500) {
+		t.Errorf("daily day/best=%v/%v, want 2026-07-10/41500", daily["day"], daily["best_ms"])
+	}
+	if daily["rank"] != float64(2) || daily["total"] != float64(2) {
+		t.Errorf("daily rank/total=%v/%v, want 2/2", daily["rank"], daily["total"])
+	}
+	if daily["next_id"] != "a" || daily["next_gap_ms"] != float64(1500) {
+		t.Errorf("daily next=%v(+%v), want a(+1500)", daily["next_id"], daily["next_gap_ms"])
 	}
 }
