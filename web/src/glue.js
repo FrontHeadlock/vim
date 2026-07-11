@@ -264,12 +264,24 @@ function vqCopySolution() {
   }
 }
 
+// vqOverlayOpen 은 모달 오버레이(매뉴얼/치트시트)가 화면을 덮고 있는지 —
+// 열려 있는 동안 키는 오버레이 몫이고 게임으로 새면 안 된다. 특히 Esc 로
+// 치트시트를 닫는 keydown 은 document(여기)가 window(index.html 의 닫기
+// 핸들러)보다 먼저 받으므로, 이 가드가 없으면 닫는 Esc 가 게임 모드까지 바꾼다.
+function vqOverlayOpen() {
+  const sheet = document.getElementById('cheatsheet');
+  if (sheet && sheet.classList.contains('show')) return true;
+  const intro = document.getElementById('intro');
+  return !!(intro && !intro.classList.contains('hidden'));
+}
+
 function vqHandleKey(e) {
   if (e.isComposing || e.keyCode === 229) return;
   // Arena 의 ID <input> 등 폼 요소에 포커스가 있으면 게임으로 보내지 않는다 —
   // preventDefault 가 타이핑 자체를 먹어버린다.
   const tgt = e.target;
   if (tgt && (tgt.tagName === 'INPUT' || tgt.tagName === 'TEXTAREA')) return;
+  if (vqOverlayOpen()) return;
   let tok = null;
   if (e.key === 'Enter') tok = '<cr>';
   else if (e.key === 'Escape') tok = '<esc>';
@@ -311,13 +323,73 @@ function vqHandleKey(e) {
 // API 베이스는 절대 URL — 배포 시엔 window.VQ_ARENA_API 로 덮어쓴다.
 const vqArenaApi = window.VQ_ARENA_API || 'http://localhost:8080';
 const vqArenaIdKey = 'vimquest.arena.id'; // 진행률 키(vimquest.v2)와 분리
+const vqArenaPbKey = 'vimquest.arena.pb'; // 내 최고 기록(ms) — 서버와 무관한 로컬 자기 경쟁
+const vqArenaPbSplitsKey = 'vimquest.arena.pbsplits'; // PB 런의 문제별 누적 스플릿(JSON 배열)
+const vqArenaLastRankKey = 'vimquest.arena.lastrank'; // 직전 제출 순위 — "▲2" 상승 표시용
+const vqArenaOfflineMsg = 'server unreachable — start it with: go run ./cmd/server';
 
 let vqArenaT0 = 0;         // START 시각(performance.now) — 0 이면 계측 중 아님
 let vqArenaFinalMs = null; // arenaDone 프레임에 딱 한 번 얼린 최종 기록
 let vqArenaTimerOn = false; // rAF 루프 중복 기동 방지(vqTickRunning 과 같은 관례)
+let vqArenaSplits = [];    // 이번 런의 문제별 누적 스플릿(ms)
+let vqArenaLastNum = 0;    // 직전 스냅샷의 문제 번호 — 문제 전환(스플릿 경계) 감지용
 
 function vqArenaFmt(ms) {
   return (ms / 1000).toFixed(1) + 's';
+}
+
+// vqArenaShowPb 는 상태줄 가운데에 내 최고 기록을 상시 노출한다 — "깰 목표"
+// 가 항상 보여야 재도전 동기가 생긴다. 기록이 없으면 비워 둔다.
+function vqArenaShowPb() {
+  const el = document.getElementById('arena-pb');
+  if (!el) return;
+  const pb = parseInt(localStorage.getItem(vqArenaPbKey), 10);
+  el.textContent = pb ? `PB ${vqArenaFmt(pb)}` : '';
+}
+
+// vqArenaRenderSplits 는 이번 런의 문제별 누적 스플릿을 PB 런과 대조해
+// 그린다 — 초록(PB 페이스보다 빠름)/빨강(느림)은 스피드런 타이머 관례.
+// PB 가 없으면 시간만 표시한다.
+function vqArenaRenderSplits() {
+  const el = document.getElementById('arena-splits');
+  if (!el) return;
+  el.textContent = '';
+  let pb = [];
+  try {
+    pb = JSON.parse(localStorage.getItem(vqArenaPbSplitsKey)) || [];
+  } catch (e) { /* 손상된 저장값은 "PB 스플릿 없음"으로 취급 */ }
+  vqArenaSplits.forEach((ms, i) => {
+    const seg = document.createElement('span');
+    seg.className = 'split';
+    let txt = `${i + 1} ${vqArenaFmt(ms)}`;
+    if (typeof pb[i] === 'number') {
+      const d = ms - pb[i];
+      txt += ` (${d >= 0 ? '+' : '−'}${vqArenaFmt(Math.abs(d))})`;
+      seg.classList.add(d <= 0 ? 'split-fast' : 'split-slow');
+    }
+    seg.textContent = txt;
+    el.append(seg);
+  });
+}
+
+// vqArenaApplyPb 는 완주 기록을 내 PB 와 비교해 갱신/표시한다. PB 스플릿은
+// PB 런 전체를 통째로 저장한다 — 문제별 최소값을 섞으면 "존재한 적 없는 런"
+// 과 비교하게 돼 페이스 판단이 왜곡된다.
+function vqArenaApplyPb() {
+  const gapEl = document.getElementById('arena-gap');
+  const prev = parseInt(localStorage.getItem(vqArenaPbKey), 10);
+  if (!prev || vqArenaFinalMs < prev) {
+    localStorage.setItem(vqArenaPbKey, String(vqArenaFinalMs));
+    localStorage.setItem(vqArenaPbSplitsKey, JSON.stringify(vqArenaSplits));
+    if (gapEl) {
+      gapEl.textContent = prev
+        ? `NEW PERSONAL BEST! ${vqArenaFmt(prev)} → ${vqArenaFmt(vqArenaFinalMs)}`
+        : 'NEW PERSONAL BEST!';
+    }
+  } else if (gapEl) {
+    gapEl.textContent = `+${vqArenaFmt(vqArenaFinalMs - prev)} vs PB ${vqArenaFmt(prev)} — run it back?`;
+  }
+  vqArenaShowPb();
 }
 
 // 계측 중에만 rAF 로 타이머 표시를 갱신한다(vqStartTick 과 같은 원칙 —
@@ -338,9 +410,26 @@ function vqArenaTimerStart() {
   requestAnimationFrame(vqArenaTimerLoop);
 }
 
+// vqArenaDiscard 는 진행 중 계측을 폐기하고 패널을 대기 상태로 되돌린다.
+// 폐기가 일어나는 모든 경로(도중 :q 이탈, 탭 이탈, 재 START)가 이 함수
+// 하나만 거치게 한다 — 폐기 지점이 흩어져 있으면 하나만 빠뜨려도 살아있는
+// 시계가 다음 런의 기록을 오염시키는 회귀가 재발한다.
+function vqArenaDiscard() {
+  vqArenaT0 = 0; // rAF 타이머 루프의 자연 종료 조건
+  vqArenaSplits = [];
+  vqArenaLastNum = 0;
+  vqArenaRenderSplits();
+  const p = document.getElementById('arena-problem');
+  const tm = document.getElementById('arena-timer');
+  if (p) p.textContent = 'READY';
+  if (tm) tm.textContent = '0.0s';
+}
+
 function vqArenaStartClick() {
   if (typeof vqArenaStart !== 'function') return; // wasm 로드 전
-  vqArenaT0 = 0; // 진행 중이던 계측 폐기 — 아래 관찰 훅이 새 런의 시계를 개시한다
+  // 진행 중이던 계측 폐기 — 직후 vqCallAndDraw 가 흘리는 arena 스냅샷에서
+  // 관찰 훅(vqArenaOnState)이 새 런의 시계를 개시하며 패널을 즉시 덮어쓴다.
+  vqArenaDiscard();
   vqCallAndDraw(window.vqArenaStart);
   const c = document.getElementById('game');
   if (c) c.focus();
@@ -356,11 +445,25 @@ function vqArenaOnState(st) {
       // 새 런 개시 — 완주 잔해(동결 기록·제출 폼·메시지)를 치우고 계측 시작.
       vqArenaT0 = performance.now();
       vqArenaFinalMs = null;
+      vqArenaSplits = [];
+      vqArenaLastNum = 1;
       const done = document.getElementById('arena-done');
       if (done) done.style.display = 'none';
       const msg = document.getElementById('arena-msg');
       if (msg) msg.textContent = '';
+      vqArenaRenderSplits();
+      vqArenaShowPb();
       vqArenaTimerStart();
+    }
+    // 문제 전환 감지 — k번 문제를 끝낸 순간의 누적 시간이 그 문제의 스플릿.
+    // 전환은 키 입력 단위(한 번에 1문제)지만 while 로 적어 스킵에도 안전.
+    // 렌더는 전환 프레임에만 한다(이 훅은 매 스냅샷마다 돈다).
+    if (vqArenaLastNum < st.arena.num) {
+      while (vqArenaLastNum < st.arena.num) {
+        vqArenaSplits.push(Math.round(performance.now() - vqArenaT0));
+        vqArenaLastNum++;
+      }
+      vqArenaRenderSplits();
     }
     const el = document.getElementById('arena-problem');
     if (el) el.textContent = `PROBLEM ${st.arena.num} / ${st.arena.count}`;
@@ -370,26 +473,26 @@ function vqArenaOnState(st) {
   // 이탈) 폐기한다 — 안 그러면 rAF 타이머가 세션 내내 돌고, 다음 완주가
   // 이탈 이전 시각 기준으로 얼려져 엉뚱한 기록이 제출된다.
   if (st.state !== 'arenaDone' && vqArenaT0) {
-    vqArenaT0 = 0;
-    const p = document.getElementById('arena-problem');
-    const tm = document.getElementById('arena-timer');
-    if (p) p.textContent = 'READY';
-    if (tm) tm.textContent = '0.0s';
+    vqArenaDiscard();
     return;
   }
   if (st.state === 'arenaDone' && vqArenaT0) {
     vqArenaFinalMs = Math.round(performance.now() - vqArenaT0);
     vqArenaT0 = 0; // rAF 루프 자연 종료
+    vqArenaSplits.push(vqArenaFinalMs); // 마지막 문제의 스플릿 = 최종 기록
+    vqArenaRenderSplits();
     const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
     set('arena-problem', 'FINISHED!');
     set('arena-timer', vqArenaFmt(vqArenaFinalMs));
     set('arena-final', `YOUR TIME: ${vqArenaFmt(vqArenaFinalMs)}`);
+    set('arena-leader', '');
+    vqArenaApplyPb(); // PB 비교/갱신 — #arena-gap 에 NEW PB 또는 격차 표시
     const done = document.getElementById('arena-done');
     if (done) done.style.display = '';
     const idEl = document.getElementById('arena-id');
     const saved = localStorage.getItem(vqArenaIdKey);
     if (idEl && saved) idEl.value = saved;
-    vqArenaFetchBoard();
+    vqArenaFetchBoard(); // 보드 갱신 — 렌더가 1위와의 격차(#arena-leader)도 채운다
   }
 }
 
@@ -412,44 +515,91 @@ function vqArenaSubmit() {
     .then((r) => r.json())
     .then((res) => {
       if (res && res.ok) {
-        if (msg) msg.textContent = `saved — best ${vqArenaFmt(res.best_ms)} · rank #${res.rank}`;
+        // 경쟁 컨텍스트를 한 줄에 압축한다 — 분모(전체 참가자), 직전 제출
+        // 대비 상승(▲), 그리고 바로 위 추격 대상까지의 격차. "몇 등"보다
+        // "누구를 몇 초 차로 쫓는가"가 재도전을 만든다.
+        let m = `saved — best ${vqArenaFmt(res.best_ms)} · rank #${res.rank}`;
+        if (res.total) m += `/${res.total}`;
+        const last = parseInt(localStorage.getItem(vqArenaLastRankKey), 10);
+        if (last && res.rank < last) m += ` ▲${last - res.rank}`;
+        localStorage.setItem(vqArenaLastRankKey, String(res.rank));
+        m += res.next_id
+          ? ` · next: ${res.next_id} (+${vqArenaFmt(res.next_gap_ms)})`
+          : ' · you lead the board';
+        if (msg) msg.textContent = m;
         return vqArenaFetchBoard();
       }
       if (msg) msg.textContent = 'rejected: ' + ((res && res.error) || 'unknown error');
     })
     .catch(() => {
-      if (msg) msg.textContent = 'server unreachable — start it with: go run ./cmd/server';
+      if (msg) msg.textContent = vqArenaOfflineMsg;
     });
 }
 
 function vqArenaFetchBoard() {
-  fetch(vqArenaApi + '/api/arena/leaderboard?limit=10')
+  // ?me= 로 내 행을 함께 받는다 — 상위 10 밖이어도 "내가 지금 몇 등인지"가
+  // 보여야 추격할 마음이 생긴다.
+  const me = (localStorage.getItem(vqArenaIdKey) || '').trim();
+  const q = '?limit=10' + (me ? `&me=${encodeURIComponent(me)}` : '');
+  return fetch(vqArenaApi + '/api/arena/leaderboard' + q)
     .then((r) => r.json())
-    .then((res) => vqArenaRenderBoard((res && res.scores) || []))
+    .then((res) => vqArenaRenderBoard(
+      (res && res.scores) || [], (res && res.me) || null, (res && res.total) || 0))
     .catch(() => {
       const msg = document.getElementById('arena-msg');
-      if (msg) msg.textContent = 'server unreachable — start it with: go run ./cmd/server';
+      if (msg) msg.textContent = vqArenaOfflineMsg;
     });
 }
 
-function vqArenaRenderBoard(scores) {
+// vqArenaRenderBoard 는 상위권 표 + 내 행 하이라이트(YOU)를 그리고, 방금
+// 완주한 직후라면(#arena-done 열림) 1위와의 격차 한 줄도 채운다. 전부
+// textContent 경유 — 서버가 돌려준 id 는 사용자 제어 문자열이다.
+function vqArenaRenderBoard(scores, meRow, total) {
   const tbl = document.getElementById('arena-lb');
   if (!tbl) return;
   tbl.textContent = '';
   if (!scores.length) return;
+  const myId = (localStorage.getItem(vqArenaIdKey) || '').trim();
+  const addRow = (s, isMe) => {
+    const row = tbl.insertRow();
+    if (isMe) row.className = 'me';
+    row.insertCell().textContent = '#' + s.rank;
+    row.insertCell().textContent = isMe ? `${s.id} ◀ YOU` : s.id;
+    const ms = row.insertCell();
+    ms.textContent = vqArenaFmt(s.ms);
+    ms.className = 'ms';
+  };
   const head = tbl.insertRow();
   for (const h of ['RANK', 'ID', 'TIME']) {
     const th = document.createElement('th');
     th.textContent = h;
     head.append(th);
   }
-  for (const s of scores) {
-    const row = tbl.insertRow();
-    row.insertCell().textContent = '#' + s.rank;
-    row.insertCell().textContent = s.id;
-    const ms = row.insertCell();
-    ms.textContent = vqArenaFmt(s.ms);
-    ms.className = 'ms';
+  for (const s of scores) addRow(s, !!myId && s.id === myId);
+  // 내 행이 상위권 밖이면 '⋯' 구분 행 뒤에 붙인다.
+  if (meRow && !scores.some((s) => s.id === meRow.id)) {
+    const gap = tbl.insertRow();
+    gap.className = 'gap';
+    const cell = gap.insertCell();
+    cell.colSpan = 3;
+    cell.textContent = '⋯';
+    addRow(meRow, true);
+  }
+  if (total > 0) {
+    const foot = tbl.insertRow();
+    foot.className = 'total';
+    const cell = foot.insertCell();
+    cell.colSpan = 3;
+    cell.textContent = `${total} player${total === 1 ? '' : 's'} on the board`;
+  }
+  // 완주 직후 화면이면 1위를 추격 목표로 못 박는다.
+  const leaderEl = document.getElementById('arena-leader');
+  if (leaderEl && vqArenaFinalMs != null) {
+    const top = scores[0];
+    const gapMs = vqArenaFinalMs - top.ms;
+    leaderEl.textContent = gapMs > 0
+      ? `leader: ${top.id} ${vqArenaFmt(top.ms)} — you're +${vqArenaFmt(gapMs)} behind`
+      : 'your time tops the current board — submit it!';
   }
 }
 
@@ -465,7 +615,9 @@ function vqSwitchTab(tab) {
   if (tt) tt.classList.toggle('active', !arena);
   if (ta) ta.classList.toggle('active', arena);
   if (!arena && vqLastState && (vqLastState.state === 'arena' || vqLastState.state === 'arenaDone')) {
-    vqArenaT0 = 0;
+    // 도중 이탈이면 계측 폐기(패널도 READY 로) — 완주(arenaDone) 상태는 이미
+    // 시계가 얼려져 있으므로(T0=0) no-op 이고, 동결 기록·제출 폼은 보존된다.
+    if (vqLastState.state === 'arena') vqArenaDiscard();
     vqCallAndDraw(window.vimquestLevelSelect);
   }
   const c = document.getElementById('game');
@@ -480,6 +632,7 @@ function vqInit() {
   document.addEventListener('keydown', vqHandleKey);
   canvas.focus();
   vqShowOnboardingIfNewSession();
+  vqArenaShowPb(); // 지난 세션의 PB — 첫 화면부터 "깰 목표"가 보이게 한다
   const st = vqState();
   vqDraw(st);
   if (st.effectsAlive) vqStartTick();

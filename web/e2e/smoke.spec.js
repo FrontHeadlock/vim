@@ -62,6 +62,37 @@ test('사이드패널이 LEVEL_META(생성 파일)로 채워진다', async ({ pa
   await expect(page.locator('#level-title')).toHaveText('SELECT LEVEL');
 });
 
+test('치트시트 열림 중 키는 게임으로 새지 않는다', async ({ page }) => {
+  await page.goto('/src/');
+  await page.waitForFunction(() => typeof window.vqState === 'function', null, {
+    timeout: 15000,
+  });
+  await dismissIntro(page);
+
+  const before = await page.evaluate(() => window.vqState());
+  expect(before.state).toBe('playing');
+
+  await page.locator('button', { hasText: 'CHEATSHEET' }).click();
+  await expect(page.locator('#cheatsheet')).toBeVisible();
+
+  // 이동 키·모드 전환 키 모두 오버레이가 삼킨다. 특히 닫는 Esc 는
+  // document(vqHandleKey)가 window(닫기 핸들러)보다 먼저 받으므로,
+  // 가드가 없으면 치트시트를 닫는 순간 게임 모드까지 바뀌는 회귀가 있었다.
+  await page.keyboard.press('l');
+  await page.keyboard.press('i');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#cheatsheet')).toBeHidden();
+
+  const after = await page.evaluate(() => window.vqState());
+  expect(after.col).toBe(before.col);
+  expect(after.mode).toBe(before.mode);
+  expect(after.strokes).toBe(before.strokes);
+
+  // 닫힌 뒤에는 키가 다시 게임에 도달한다.
+  await page.keyboard.press('l');
+  expect((await page.evaluate(() => window.vqState())).col).toBe(before.col + 1);
+});
+
 test('Esc 로 레벨 선택에서 복귀', async ({ page }) => {
   await page.goto('/src/');
   await page.waitForFunction(() => typeof window.vqState === 'function', null, {

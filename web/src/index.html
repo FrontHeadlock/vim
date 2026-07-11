@@ -12,7 +12,7 @@
   /* ── retro terminal palette (matches the game) ── */
   :root{
     --bg:#1e202a; --bg2:#14161d; --panel:#272b36; --panel2:#2f3340; --bar:#343a48;
-    --line:#454b5c; --floor:#5a6072;
+    --line:#454b5c; --line2:#313744; --floor:#5a6072; /* --line2: 표 안쪽 구분선(패널 테두리 --line 보다 어두운 톤) */
     --text:#f0f0f0; --muted:#aab0c0;
     --green:#5fd07b; --yellow:#f6d84f; --red:#e85c5c; --cyan:#56b6e0;
     --ui:'VT323','Courier New',monospace;       /* 90s terminal body font */
@@ -94,11 +94,19 @@
   #arena-panel{ width:960px; max-width:96vw; margin:12px 0; }
   #arena-status-line{ display:flex; justify-content:space-between; align-items:baseline; }
   #arena-problem{ color:var(--yellow); font-size:23px; }
+  #arena-pb{ font-family:var(--code); font-size:16px; color:var(--muted); }
   #arena-timer{ font-family:var(--code); font-size:22px; color:var(--green); }
+  /* 문제별 누적 스플릿 — 스피드런 타이머 관례(PB 대비 초록=앞섬, 빨강=뒤짐). */
+  #arena-splits{ margin-top:6px; font-family:var(--code); font-size:15px; color:var(--muted);
+    min-height:18px; display:flex; gap:14px; flex-wrap:wrap; }
+  #arena-splits .split-fast{ color:var(--green); }
+  #arena-splits .split-slow{ color:var(--red); }
   #arena-hint{ margin-top:8px; font-size:19px; line-height:1.4; color:var(--text); }
   #arena-controls{ margin-top:14px; display:flex; gap:8px; flex-wrap:wrap; }
   #arena-done{ margin-top:14px; border-top:1px dashed var(--line); padding-top:12px; }
   #arena-final{ color:var(--yellow); font-size:22px; }
+  #arena-gap{ margin-top:6px; font-size:18px; color:var(--yellow); }
+  #arena-leader{ margin-top:4px; font-size:17px; color:var(--muted); }
   .arena-submit-row{ margin-top:10px; display:flex; gap:8px; align-items:center; }
   #arena-id{
     font-family:var(--code); font-size:17px; padding:6px 10px; width:220px;
@@ -107,9 +115,14 @@
   #arena-id:focus{ border-color:var(--cyan); }
   #arena-msg{ margin-top:8px; font-size:17px; color:var(--muted); min-height:20px; }
   #arena-lb{ margin-top:10px; width:100%; border-collapse:collapse; font-size:18px; }
-  #arena-lb td, #arena-lb th{ padding:4px 6px; border-bottom:1px solid #313744; text-align:left; }
+  #arena-lb td, #arena-lb th{ padding:4px 6px; border-bottom:1px solid var(--line2); text-align:left; }
   #arena-lb th{ color:var(--yellow); font-family:var(--pixel); font-size:10px; }
   #arena-lb td.ms{ font-family:var(--code); font-size:15px; color:var(--green); }
+  /* 내 행 하이라이트 + 상위권 밖일 때의 '⋯' 구분 행/참가자 수 푸터 */
+  #arena-lb tr.me td{ background:var(--bg2); }
+  #arena-lb tr.me td:nth-child(2){ color:var(--cyan); }
+  #arena-lb tr.gap td{ color:var(--muted); text-align:center; border-bottom:none; }
+  #arena-lb tr.total td{ color:var(--muted); font-size:15px; border-bottom:none; }
 
   /* ── game canvas frame ── */
   /* image-rendering 은 body 에서도 상속되지만, 캔버스 자체 배율 축소 시
@@ -157,7 +170,7 @@
   #intro h3{ margin:18px 0 6px; font-family:var(--pixel); font-size:11px; color:var(--yellow); letter-spacing:.5px; }
   #intro h3::before{ content:"> "; color:var(--green); }
   #intro table{ width:100%; border-collapse:collapse; font-size:18px; }
-  #intro td{ padding:4px 6px; border-bottom:1px solid #313744; vertical-align:top; }
+  #intro td{ padding:4px 6px; border-bottom:1px solid var(--line2); vertical-align:top; }
   #intro td:first-child{ width:140px; color:var(--cyan); font-family:var(--code); font-size:15px; white-space:nowrap; }
   #intro .modes{ display:flex; gap:10px; margin:8px 0 2px; flex-wrap:wrap; }
   #intro .mode{ flex:1; min-width:230px; border:2px solid var(--line); background:var(--bg2); padding:11px 13px; font-size:17px; line-height:1.35; }
@@ -165,14 +178,13 @@
   #intro .startwrap{ margin-top:22px; text-align:center; }
   #intro .start{ font-size:13px; font-family:var(--pixel); padding:13px 22px; }
   #intro .warn{ color:#e5a3a8; font-size:16px; text-align:center; margin-top:12px; }
-  .lang-only{ }
 
   /* ── cheatsheet ── */
   #cheatsheet{ display:none; }
   #cheatsheet.show{ display:flex; }
   #cheatsheet .win{ width:620px; max-width:94vw; max-height:86vh; overflow-y:auto; }
   #cheatsheet table{ width:100%; border-collapse:collapse; font-size:18px; }
-  #cheatsheet td{ padding:4px 4px; border-bottom:1px solid #313744; }
+  #cheatsheet td{ padding:4px 4px; border-bottom:1px solid var(--line2); }
   #cheatsheet td:first-child{ width:160px; color:var(--green); font-family:var(--code); font-size:15px; }
   #cheatsheet td.grp{ color:var(--yellow); font-family:var(--pixel); font-size:10px; padding-top:13px; border-bottom:2px solid var(--line); }
   #cheatsheet .foot{ margin-top:14px; color:var(--muted); font-size:16px; text-align:right; }
@@ -330,19 +342,24 @@
     <div class="winbody">
       <div id="arena-status-line">
         <span id="arena-problem">READY</span>
+        <span id="arena-pb"></span>
         <span id="arena-timer">0.0s</span>
       </div>
-      <div id="arena-hint">Race through 5 fixed real-world Vim edits. The clock starts the moment you press START — no pause, resets don't stop it. Fastest total time wins.</div>
+      <div id="arena-splits"></div>
+      <div id="arena-hint">Race through 5 fixed real-world Vim edits. The clock starts the moment you press START — no pause, resets don't stop it. Fastest total time wins. Splits track each problem against your personal best.</div>
       <div id="arena-controls">
-        <button class="btn g" onclick="vqArenaStartClick()">▶ START</button>
+        <button class="btn g" id="arena-start-btn" onclick="vqArenaStartClick()">▶ START</button>
         <button class="btn" onclick="vqCallAndDraw(window.vimquestReset)">↺ RESET PROBLEM</button>
         <button class="btn y" onclick="vqArenaFetchBoard()">🏆 LEADERBOARD</button>
       </div>
       <div id="arena-done" style="display:none">
         <div id="arena-final"></div>
+        <div id="arena-gap"></div>
+        <div id="arena-leader"></div>
         <div class="arena-submit-row">
           <input id="arena-id" maxlength="32" placeholder="your id" autocomplete="off">
-          <button class="btn y" onclick="vqArenaSubmit()">⬆ SUBMIT</button>
+          <button class="btn y" id="arena-submit-btn" onclick="vqArenaSubmit()">⬆ SUBMIT</button>
+          <button class="btn g" id="arena-again-btn" onclick="vqArenaStartClick()">↻ RUN AGAIN</button>
         </div>
       </div>
       <div id="arena-msg"></div>
@@ -439,6 +456,7 @@
   function isHangul(key){ return /[㄰-㆏가-힣]/.test(key); }
   window.addEventListener('keydown', (e) => {
     if (e.isComposing || e.keyCode === 229 || isHangul(e.key)) imeWarn.style.display = 'block';
+    else imeWarn.style.display = 'none'; // 영문 입력으로 돌아오면 경고를 거둔다
   }, true);
 
   const sheet = document.getElementById('cheatsheet');
