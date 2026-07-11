@@ -1,8 +1,8 @@
 // Package store 는 레벨 진행 상황(잠금 해제·최고 기록·별점)의 영속화를 맡는다.
 // 웹 빌드는 localStorage, 데스크톱 빌드는 os.UserConfigDir() 하위 파일로
 // (둘 다 store_other.go/store_js.go, 빌드 태그로 구현이 갈린다) 저장하고,
-// 직렬화 코덱(이 파일)은 양쪽이 공유한다. go test 하에서는 store_other.go 의
-// New() 가 실제 파일을 건드리지 않는 인메모리 구현으로 자동 대체된다.
+// 직렬화 코덱(이 파일)은 양쪽이 공유한다. 테스트는 New() 대신 NewMem() 을
+// game.New 에 주입해 실제 저장 파일/localStorage 와 격리된다.
 package store
 
 import (
@@ -19,10 +19,34 @@ type LevelProgress struct {
 
 // Store 는 진행 상황 영속화 인터페이스.
 // dom_js.go/dom_other.go와 동일하게 빌드 태그로 구현을 분리한다
-// (store_js.go: localStorage, store_other.go: 파일 — go test 하에서는 인메모리).
+// (store_js.go: localStorage, store_other.go: 파일). 어느 구현을 쓸지는
+// 컴포지션 루트(cmd/desktop, jsbridge)가 game.New 에 주입해 결정한다 —
+// 테스트는 NewMem() 을 명시적으로 주입한다.
 type Store interface {
 	Load() map[string]LevelProgress // key = Level.ID
 	Save(map[string]LevelProgress)
+}
+
+// NewMem 은 프로세스 생존 동안만 유지되는 인메모리 Store 를 만든다 —
+// 헤드리스 테스트가 실제 저장 파일/localStorage 를 건드리지 않도록 명시적으로
+// 주입하는 용도(store_other.go 의 UserConfigDir 조회 실패 폴백도 이걸 쓴다).
+func NewMem() Store { return &memStore{data: map[string]LevelProgress{}} }
+
+type memStore struct{ data map[string]LevelProgress }
+
+func (s *memStore) Load() map[string]LevelProgress {
+	out := make(map[string]LevelProgress, len(s.data))
+	for k, v := range s.data {
+		out[k] = v
+	}
+	return out
+}
+
+func (s *memStore) Save(m map[string]LevelProgress) {
+	s.data = make(map[string]LevelProgress, len(m))
+	for k, v := range m {
+		s.data[k] = v
+	}
 }
 
 // EncodeProgress/DecodeProgress 는 진행 상황을 수제 텍스트 포맷으로 직렬화한다.

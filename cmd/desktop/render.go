@@ -104,7 +104,7 @@ func (a *app) drawPlaying(screen *ebiten.Image) {
 	}
 	if lv.Kind == "navigate" {
 		hud += "   keys " + strconv.Itoa(g.KeysNeed()-g.KeysLeft()) + "/" + strconv.Itoa(g.KeysNeed()) +
-			"   bugs " + strconv.Itoa(g.PestsLeft())
+			"   bugs " + strconv.Itoa(g.BugsLeft())
 	} else {
 		hud += "   [EDIT]  transform LEFT to match RIGHT"
 	}

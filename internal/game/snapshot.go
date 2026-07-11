@@ -129,7 +129,7 @@ func (g *Game) Snapshot() map[string]any {
 	if g.lv.Kind == "navigate" {
 		base["keys"] = g.keysNeed - len(g.keyPos)
 		base["keysNeed"] = g.keysNeed
-		base["bugs"] = g.PestsLeft()
+		base["bugs"] = g.BugsLeft()
 		kp := make([]any, 0, len(g.keyPos))
 		for pos := range g.keyPos {
 			kp = append(kp, map[string]any{"row": pos[0], "col": pos[1]})

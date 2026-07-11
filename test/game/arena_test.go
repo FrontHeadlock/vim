@@ -60,7 +60,7 @@ func TestArenaLevelsSolvable(t *testing.T) {
 // 가 recordClear()/store.Save() 를 절대 부르지 않는다는 이 설계의 핵심
 // 회귀 가드다(LoadCustomLevel+advance() 경로였다면 여기서 바로 깨진다).
 func TestArenaRunLeavesProgressUntouched(t *testing.T) {
-	g := New()
+	g := newGame()
 	g.EnterLevelSelect()
 	before := g.Snapshot()["worlds"]
 
@@ -83,7 +83,7 @@ func TestArenaRunLeavesProgressUntouched(t *testing.T) {
 // arenaDone 이 되는지, 도중 RESET(RestartCurrent)이 문제를 건너뛰지 않는지,
 // 완주 화면에선 키 입력이 삼켜지는지 확인한다.
 func TestArenaAdvanceProgression(t *testing.T) {
-	g := New()
+	g := newGame()
 	g.EnterArena()
 
 	if st := g.Snapshot()["state"]; st != "arena" {
@@ -140,7 +140,7 @@ func TestArenaAdvanceProgression(t *testing.T) {
 // 나간다. :drill 을 허용하면 아레나 패널·타이머 아래에 드릴이 깔리는 화면
 // 분열이 생긴다(정합성 리뷰 #3).
 func TestArenaExCommandsRespectMode(t *testing.T) {
-	g := New()
+	g := newGame()
 	g.EnterArena()
 
 	ex(g, "drill w")

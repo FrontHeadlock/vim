@@ -11,7 +11,15 @@ import (
 
 	"vimquest/internal/engine"
 	. "vimquest/internal/game"
+	"vimquest/internal/store"
 )
+
+// newGame 은 인메모리 저장소를 주입한 게임을 만든다 — 테스트가 이 머신의
+// 실제 저장 파일(진행 상황)을 읽거나 쓰는 일이 없도록 명시적으로 격리한다
+// (예전엔 store.New() 안의 testing.Testing() 암묵 감지가 맡던 보장).
+func newGame() *Game {
+	return New(store.NewMem())
+}
 
 // feedKeys 는 입력 문자열을 파싱해 엔진에 직접 흘려보낸다(게임 규칙을 거치지
 // 않는 순수 엔진 검증용 — 게임 경유는 playKeys 를 쓸 것).
@@ -58,7 +66,7 @@ func levelIndexByID(id string) int {
 // 도달한 게임을 돌려준다.
 func reachAllClear(t *testing.T) *Game {
 	t.Helper()
-	g := New()
+	g := newGame()
 	last := LevelCount() - 1
 	g.LoadLevel(last)
 	playKeys(g, LevelAt(last).Solution)
@@ -117,7 +125,7 @@ func TestNavigateLevelsValid(t *testing.T) {
 
 // TestNavigateSolveLevel1 은 1-1 을 이동만으로 클리어해 클리어 화면으로 전환되는지 본다.
 func TestNavigateSolveLevel1(t *testing.T) {
-	g := New()
+	g := newGame()
 	if g.Level().Kind != "navigate" {
 		t.Fatal("레벨 1-1 이 navigate 가 아님")
 	}
@@ -139,7 +147,7 @@ func TestNavigateLevelsSolvable(t *testing.T) {
 		if lv.Kind != "navigate" {
 			continue
 		}
-		g := New()
+		g := newGame()
 		g.LoadLevel(i)
 		playKeys(g, lv.Solution)
 		if g.State() != StateLevelClear && g.State() != StateAllClear {
@@ -304,7 +312,7 @@ func TestBonusEditLevelsNaiveSolveIsWorse(t *testing.T) {
 
 // TestNavigateBlocksEditing 은 navigate 레벨에서 편집키가 막히는지 확인한다.
 func TestNavigateBlocksEditing(t *testing.T) {
-	g := New() // 1-1
+	g := newGame() // 1-1
 	before := strings.Join(g.Editor().Lines(), "\n")
 	playKeys(g, "dd") // dd 시도 — 막혀야 함
 	after := strings.Join(g.Editor().Lines(), "\n")
@@ -315,7 +323,7 @@ func TestNavigateBlocksEditing(t *testing.T) {
 
 // TestNavigateAllowsSearch 는 navigate 레벨에서 검색(/ ? n N)이 막히지 않는지 확인한다.
 func TestNavigateAllowsSearch(t *testing.T) {
-	g := New() // 1-1: "@........." 등 5줄
+	g := newGame() // 1-1: "@........." 등 5줄
 	g.Input(engine.RuneKey('/'))
 	if !g.Editor().Searching() {
 		t.Fatal("navigate 레벨에서 '/' 가 막힘 — searching 진입 실패")
@@ -362,7 +370,7 @@ func TestNavigateAllowsAllTaughtKeys(t *testing.T) {
 				if r == 0 {
 					continue
 				}
-				g := New()
+				g := newGame()
 				g.LoadLevel(i) // 키마다 새 게임 — 이전 키의 대기 상태(f 인자 등) 격리
 				g.Input(engine.RuneKey(r))
 				if g.BellActive() {
@@ -396,7 +404,7 @@ func TestLevelMetaComplete(t *testing.T) {
 
 // TestVisualBellOnBlockedKey 는 막힌 키 입력 시 visual bell 이 켜지는지 확인한다.
 func TestVisualBellOnBlockedKey(t *testing.T) {
-	g := New()                   // 1-1, navigate
+	g := newGame()               // 1-1, navigate
 	g.Input(engine.RuneKey('d')) // 편집키 — 막혀야 함
 	if !g.BellActive() {
 		t.Fatal("막힌 키 입력인데 visual bell 이 켜지지 않음")
@@ -405,7 +413,7 @@ func TestVisualBellOnBlockedKey(t *testing.T) {
 
 // TestNoBellOnValidKey 는 정상 입력에서는 visual bell 이 발동하지 않는지 확인한다.
 func TestNoBellOnValidKey(t *testing.T) {
-	g := New()
+	g := newGame()
 	g.Input(engine.RuneKey('l')) // 정상 이동
 	if g.BellActive() {
 		t.Fatal("정상 입력인데 visual bell 이 켜짐")
@@ -414,7 +422,7 @@ func TestNoBellOnValidKey(t *testing.T) {
 
 // TestBugKillFiresEffect 는 버그 처치 시 문자 치환 이펙트가 생성되는지 확인한다.
 func TestBugKillFiresEffect(t *testing.T) {
-	g := New()
+	g := newGame()
 	g.LoadLevel(levelIndexByID("1-5")) // 1-5: (0,3)에 버그
 	playKeys(g, "lllx")
 	if _, ok := g.EffectAt(0, 3); !ok {
@@ -428,7 +436,7 @@ func TestBugKillFiresEffect(t *testing.T) {
 // 왼쪽으로 밀려, keyPos(레벨 로드 시 고정 캡처)와 라이브 판정 좌표가 어긋난다.
 func TestNavigateBugKillPreservesCoordinates(t *testing.T) {
 	lv := Level{ID: "x-desync-regress", Kind: "navigate", Map: []string{"@.*..K...$"}}
-	g := New()
+	g := newGame()
 	g.LoadCustomLevel(lv)
 
 	playKeys(g, "llx") // 버그(col2)로 이동해 처치
@@ -453,7 +461,7 @@ func TestNavigateBugKillPreservesCoordinates(t *testing.T) {
 
 // TestExCommandQ 는 :q 로 레벨 선택 화면으로 전환되는지 확인한다.
 func TestExCommandQ(t *testing.T) {
-	g := New()
+	g := newGame()
 	ex(g, "q")
 	if g.State() != StateLevelSelect {
 		t.Fatalf(":q 후 state=%v want StateLevelSelect", g.State())
@@ -464,7 +472,7 @@ func TestExCommandQ(t *testing.T) {
 // 선택으로 나가는 대신 StateDrillSummary(세션 통계 요약)로 전환되고, 거기서
 // 아무 키나 누르면 그제서야 레벨 선택으로 넘어가는지 확인한다.
 func TestExCommandQInDrillShowsSummary(t *testing.T) {
-	g := New()
+	g := newGame()
 	ex(g, "drill")
 	lv := g.Level()
 	playKeys(g, lv.Solution) // 한 문제 클리어해 통계를 누적(streak>=1)
@@ -495,7 +503,7 @@ func TestExCommandQInDrillShowsSummary(t *testing.T) {
 // TestStrokesExemptExCommand 는 ':' 진입과 그 이후 ex-command 입력이 strokes
 // 를 증가시키지 않는지 확인한다 — ':help' 를 열어봐도 별점 손해가 없어야 한다.
 func TestStrokesExemptExCommand(t *testing.T) {
-	g := New()
+	g := newGame()
 	before := g.Strokes()
 	ex(g, "help")
 	if g.Strokes() != before {
@@ -514,7 +522,7 @@ func TestExCommandDrillKindDispatch(t *testing.T) {
 		{"drill x", "DRILL [x]"},
 	}
 	for _, c := range cases {
-		g := New()
+		g := newGame()
 		ex(g, c.cmd)
 		if g.State() != StateDrill {
 			t.Fatalf("[%q] 이후 state=%v want StateDrill", c.cmd, g.State())
@@ -527,7 +535,7 @@ func TestExCommandDrillKindDispatch(t *testing.T) {
 
 // TestExCommandRestart 는 :restart 로 현재 레벨이 리로드되는지 확인한다.
 func TestExCommandRestart(t *testing.T) {
-	g := New()
+	g := newGame()
 	playKeys(g, "jjllll") // 열쇠 획득해 strokes/keyPos 변화를 만든다
 	ex(g, "restart")
 	if g.Strokes() != 0 || g.KeysLeft() == 0 {
@@ -538,7 +546,7 @@ func TestExCommandRestart(t *testing.T) {
 // TestExCommandRestartInDrillStaysInDrill 은 :drill 중에 :restart 를 치면
 // 같은 드릴 문제가 strokes=0 으로 재시작되고 StateDrill 이 유지되는지 확인한다.
 func TestExCommandRestartInDrillStaysInDrill(t *testing.T) {
-	g := New()
+	g := newGame()
 	g.LoadLevel(2) // levelIdx=2 로 이동 — :restart 가 여기로 새는지 구분하기 위함
 	ex(g, "drill")
 	lv := g.Level() // 드릴이 생성한 문제(맵/해)를 기억해둔다
@@ -564,7 +572,7 @@ func TestExCommandRestartInDrillStaysInDrill(t *testing.T) {
 // 동일하게) 드릴 인식이 유지되는지 확인한다 — RestartCurrent 가 재시작의
 // 유일한 진입점이라는 계약을 이 테스트가 직접 지킨다.
 func TestRestartCurrentIsDrillAware(t *testing.T) {
-	g := New()
+	g := newGame()
 	g.LoadLevel(2)
 	ex(g, "drill")
 	lv := g.Level()
@@ -578,7 +586,7 @@ func TestRestartCurrentIsDrillAware(t *testing.T) {
 
 // TestExCommandGotoLine 은 :{N} 이 실제로 N번째 줄로 이동하는지 확인한다.
 func TestExCommandGotoLine(t *testing.T) {
-	g := New()
+	g := newGame()
 	g.LoadLevel(levelIndexByID("3-2")) // 4줄짜리 edit 레벨
 	ex(g, "3")
 	if g.Editor().Row() != 2 {
@@ -588,7 +596,7 @@ func TestExCommandGotoLine(t *testing.T) {
 
 // TestExCommandEscCancels 는 esc 로 ex-command 입력을 취소하면 상태가 그대로인지 확인한다.
 func TestExCommandEscCancels(t *testing.T) {
-	g := New()
+	g := newGame()
 	before := g.State()
 	g.Input(engine.RuneKey(':'))
 	g.Input(engine.RuneKey('q'))
@@ -600,7 +608,7 @@ func TestExCommandEscCancels(t *testing.T) {
 
 // TestExCommandUnknownIgnored 는 인식 못하는 명령이 조용히 무시되는지 확인한다.
 func TestExCommandUnknownIgnored(t *testing.T) {
-	g := New()
+	g := newGame()
 	before := g.State()
 	ex(g, "bogus")
 	if exActive(g) || g.State() != before {
@@ -611,7 +619,7 @@ func TestExCommandUnknownIgnored(t *testing.T) {
 // TestColonInInsertModeIsLiteral 은 Insert 모드에서 ':' 이 ex-command 로 가로채이지
 // 않고 그냥 문자로 입력되는지 확인한다.
 func TestColonInInsertModeIsLiteral(t *testing.T) {
-	g := New()
+	g := newGame()
 	g.LoadLevel(levelIndexByID("3-4")) // edit 레벨(Insert 모드 진입 가능)
 	g.Input(engine.RuneKey('A'))
 	g.Input(engine.RuneKey(':'))
@@ -626,7 +634,7 @@ func TestColonInInsertModeIsLiteral(t *testing.T) {
 // TestInputLevelClearEnterAdvances 는 클리어 화면에서 Input(cr) 이 다음 레벨로
 // 넘어가는지 확인한다.
 func TestInputLevelClearEnterAdvances(t *testing.T) {
-	g := New()
+	g := newGame()
 	playKeys(g, "jjlllljjlllll") // 1-1 클리어 → StateLevelClear
 	if g.State() != StateLevelClear {
 		t.Fatalf("사전조건 실패: state=%v want StateLevelClear", g.State())
@@ -640,7 +648,7 @@ func TestInputLevelClearEnterAdvances(t *testing.T) {
 // TestClearIsNewFlag 는 ClearStats.IsNew 가 최초 클리어/기록 미갱신 두
 // 경우에서 올바른지 확인한다(렌더러가 직접 재계산하지 않고 이 값만 읽는다).
 func TestClearIsNewFlag(t *testing.T) {
-	g := New()
+	g := newGame()
 	playKeys(g, "jjlllljjlllll")
 	if !g.LastClear().IsNew {
 		t.Fatal("최초 클리어인데 IsNew=false")
@@ -662,7 +670,7 @@ func TestClearIsNewFlag(t *testing.T) {
 // 시퀀스를 반영하고, ex-command 로 진입한 키(:q 등)는 포함하지 않는지
 // 확인한다(strokes 와 같은 기준).
 func TestClearYoursRecordsMyKeys(t *testing.T) {
-	g := New()
+	g := newGame()
 	playKeys(g, "jjllll")
 	ex(g, "q")     // ex-command 는 strokes 에서 빠지므로 yours 에도 없어야 함
 	g.LoadLevel(0) // :q 가 레벨 선택으로 보냈으므로 다시 로드
@@ -683,7 +691,7 @@ func TestClearYoursRecordsMyKeys(t *testing.T) {
 // TestInputLevelClearRetry 는 클리어 화면에서 Input('r') 이 같은 레벨을
 // strokes=0 으로 리로드하는지 확인한다.
 func TestInputLevelClearRetry(t *testing.T) {
-	g := New()
+	g := newGame()
 	playKeys(g, "jjlllljjlllll")
 	if g.State() != StateLevelClear {
 		t.Fatalf("사전조건 실패: state=%v want StateLevelClear", g.State())
@@ -697,7 +705,7 @@ func TestInputLevelClearRetry(t *testing.T) {
 // TestInputLevelSelectNavigation 은 레벨 선택 화면에서 h/j/k/l 로 커서를 옮기고
 // 잠긴 레벨은 Enter 로 입장되지 않으며 unlocked 레벨은 입장되는지 확인한다.
 func TestInputLevelSelectNavigation(t *testing.T) {
-	g := New()
+	g := newGame()
 	g.EnterLevelSelect() // 1-1 위치, W1 selLevel=0
 
 	g.Input(engine.RuneKey('l')) // W2 로 이동 — 2-1 은 아직 잠김
@@ -716,7 +724,7 @@ func TestInputLevelSelectNavigation(t *testing.T) {
 // TestInputNoStrokesOutsidePlaying 은 StatePlaying 이 아닌 상태에서의 Input 이
 // strokes 를 증가시키지 않는지 확인한다(레벨 클리어 화면에서 의미 없는 키 입력).
 func TestInputNoStrokesOutsidePlaying(t *testing.T) {
-	g := New()
+	g := newGame()
 	playKeys(g, "jjlllljjlllll") // StateLevelClear
 	before := g.Strokes()
 	g.Input(engine.RuneKey('x')) // 클리어 화면에서 'r'/'cr' 도 아닌 키
@@ -763,7 +771,7 @@ func TestParseKeyUTF8(t *testing.T) {
 // 상한까지 실제로 문제를 풀어 도달한다(드릴은 클리어 즉시 다음 문제를 만들고,
 // 현재 문제의 Solution 은 Level() 로 읽을 수 있다).
 func TestDrillCapsSessionLength(t *testing.T) {
-	g := New()
+	g := newGame()
 	ex(g, "drill")
 	rounds := 0
 	for g.State() == StateDrill && rounds < DrillMaxRounds+5 {
@@ -802,7 +810,7 @@ func TestDrillGeneratorsSolvable(t *testing.T) {
 		rng := rand.New(rand.NewSource(k.seed))
 		for i := 0; i < 100; i++ {
 			lv := GenerateDrillLevel(k.kind, rng)
-			g := New()
+			g := newGame()
 			g.LoadCustomLevel(lv)
 			for _, key := range engine.ParseKeys(lv.Solution) {
 				g.Input(key)
@@ -823,7 +831,7 @@ func TestDrillGeneratorsSolvable(t *testing.T) {
 // 커서만 옮기고 dcol(수직 모션의 목표 열)을 안 맞추면 j/k 가 엉뚱한 열로
 // 이동한다(:drill 생성기의 무작위 시작열에서 실제로 재현해 잡아낸 결함).
 func TestLoadCustomLevelSetsCursorDcol(t *testing.T) {
-	g := New()
+	g := newGame()
 	g.LoadCustomLevel(Level{
 		Kind: "navigate",
 		Map:  []string{"....@....", ".........", "....$...."},

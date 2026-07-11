@@ -9,7 +9,7 @@ import (
 // TestVisualRowsCharwiseSingleLine 은 같은 줄 charwise 선택이 [c1,c2] 구간
 // 하나로 정확히 나오는지 확인한다.
 func TestVisualRowsCharwiseSingleLine(t *testing.T) {
-	g := New()
+	g := newGame()
 	g.LoadCustomLevel(Level{Kind: "edit", Map: []string{"hello world"}, Target: []string{"hello worldX"}})
 	playKeys(g, "llv ll") // v 로 진입 후 이동 선택
 	rows := g.VisualRows()
@@ -24,7 +24,7 @@ func TestVisualRowsCharwiseSingleLine(t *testing.T) {
 // TestVisualRowsLinewiseSpansWholeLines 은 V(라인 선택) 로 여러 줄을 고르면
 // 각 줄 전체가 구간(0..len-1)으로 나오는지 확인한다.
 func TestVisualRowsLinewiseSpansWholeLines(t *testing.T) {
-	g := New()
+	g := newGame()
 	g.LoadCustomLevel(Level{Kind: "edit", Map: []string{"aa", "bbb", "c"}, Target: []string{"aa", "bbb", "cX"}})
 	playKeys(g, "Vj")
 	rows := g.VisualRows()
@@ -41,7 +41,7 @@ func TestVisualRowsLinewiseSpansWholeLines(t *testing.T) {
 
 // TestVisualRowsNilWhenNotSelecting 는 비주얼 모드가 아니면 nil 인지 확인한다.
 func TestVisualRowsNilWhenNotSelecting(t *testing.T) {
-	g := New()
+	g := newGame()
 	g.LoadCustomLevel(Level{Kind: "edit", Map: []string{"abc"}, Target: []string{"abcX"}})
 	if rows := g.VisualRows(); rows != nil {
 		t.Fatalf("비선택 상태인데 VisualRows()=%+v want nil", rows)
@@ -51,7 +51,7 @@ func TestVisualRowsNilWhenNotSelecting(t *testing.T) {
 // TestMatchedRowsPerLine 은 edit 레벨에서 각 줄이 Target 과 일치하는지를
 // 정확히 반영하는지 확인한다.
 func TestMatchedRowsPerLine(t *testing.T) {
-	g := New()
+	g := newGame()
 	g.LoadCustomLevel(Level{
 		Kind:   "edit",
 		Map:    []string{"foo", "bar"},
@@ -66,7 +66,7 @@ func TestMatchedRowsPerLine(t *testing.T) {
 // TestMatchedRowsNilForNavigate 는 navigate 레벨에서 nil 인지 확인한다
 // (edit 전용 계약 — navigate 렌더 경로는 이 필드를 아예 쓰지 않는다).
 func TestMatchedRowsNilForNavigate(t *testing.T) {
-	g := New()
+	g := newGame()
 	if got := g.MatchedRows(); got != nil {
 		t.Fatalf("navigate 레벨인데 MatchedRows()=%+v want nil", got)
 	}
@@ -87,7 +87,7 @@ func TestSnapshotContract(t *testing.T) {
 	}
 
 	// playing (navigate)
-	g := New()
+	g := newGame()
 	requireKeys(t, g.Snapshot(), "state", "kind", "lines", "row", "col", "mode",
 		"strokes", "par", "visualRows", "hint", "title")
 
@@ -101,13 +101,13 @@ func TestSnapshotContract(t *testing.T) {
 	requireKeys(t, g.Snapshot(), "target", "matchedRows")
 
 	// clear — 1-1 을 실제로 클리어해 도달
-	g2 := New()
+	g2 := newGame()
 	playKeys(g2, "jjlllljjlllll")
 	requireKeys(t, g2.Snapshot(), "state", "clearStrokes", "clearPar", "clearStars",
 		"clearBest", "clearIsNew", "clearYours", "solution")
 
 	// select
-	g3 := New()
+	g3 := newGame()
 	g3.EnterLevelSelect()
 	requireKeys(t, g3.Snapshot(), "state", "worlds", "selRow", "selCol")
 

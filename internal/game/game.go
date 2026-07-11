@@ -12,7 +12,6 @@ package game
 
 import (
 	"math/rand"
-	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -71,10 +70,14 @@ type Game struct {
 	arenaIdx int // ArenaLevels 진행 위치 — 시간 필드는 없다(시간은 JS 소유)
 }
 
-// New 는 저장된 진행을 복원하고 첫 레벨을 로드한 게임을 만든다.
-func New() *Game {
+// New 는 st 에서 저장된 진행을 복원하고 첫 레벨을 로드한 게임을 만든다.
+// 어떤 Store 구현(파일/localStorage/인메모리)을 쓸지는 컴포지션 루트
+// (cmd/desktop, jsbridge — 테스트는 store.NewMem())가 결정한다 — 게임이
+// 구체 생성자를 직접 부르면 테스트가 실제 저장 파일을 피할 방법이 암묵
+// 감지(과거의 testing.Testing())뿐이게 된다.
+func New(st store.Store) *Game {
 	g := &Game{}
-	g.store = store.New()
+	g.store = st
 	g.progress = g.store.Load()
 	if len(levels) > 0 {
 		first := g.progress[levels[0].ID]
@@ -93,9 +96,9 @@ func (g *Game) LoadLevel(idx int) {
 }
 
 // LoadCustomLevel 은 커리큘럼 밖의 임의 Level 을 StatePlaying 으로 로드한다.
-// 소비자: 테스트 하네스(test/game — 생성기 문제·회귀용 맵 검증), 그리고
-// 백로그의 :new 샌드박스/사용자 레벨이 쓰게 될 진입점이다. levelIdx 는
-// 건드리지 않으므로 클리어 시 다음 커리큘럼 해금은 현재 위치 기준이다.
+// 현재 소비자는 테스트 하네스뿐이다(test/game — 생성기 문제·회귀용 맵 검증).
+// levelIdx 는 건드리지 않으므로 클리어 시 다음 커리큘럼 해금은 현재 위치
+// 기준이다.
 func (g *Game) LoadCustomLevel(lv Level) {
 	g.state = StatePlaying
 	g.loadLevelData(lv)
@@ -141,8 +144,8 @@ func (g *Game) loadLevelData(lv Level) {
 	}
 }
 
-// PestsLeft 는 버퍼에 남은 버그(*) 수. 승리 판정과 HUD 렌더 양쪽에서 쓴다.
-func (g *Game) PestsLeft() int {
+// BugsLeft 는 버퍼에 남은 버그(*) 수. 승리 판정과 HUD 렌더 양쪽에서 쓴다.
+func (g *Game) BugsLeft() int {
 	n := 0
 	for _, l := range g.ed.Lines() {
 		n += strings.Count(l, "*")
@@ -203,33 +206,6 @@ func (g *Game) feed(k engine.Key) {
 	g.ed.Feed(k)
 }
 
-// feedEx 는 ":" 명령줄 입력을 처리하는 Game 레벨 pseudo-mode.
-// 검색과 같은 골격(bool 플래그 + 버퍼 + esc/cr/bs)을 재사용하되,
-// :q/:restart 처럼 Editor 밖의 Game 상태를 조작해야 해서 엔진이 아닌
-// 게임에 둔다.
-func (g *Game) feedEx(k engine.Key) {
-	switch k.S {
-	case "esc":
-		g.exMode = false
-		g.exBuf = nil
-		return
-	case "cr":
-		cmd := string(g.exBuf)
-		g.exMode = false
-		g.exBuf = nil
-		g.runExCommand(cmd)
-		return
-	case "bs":
-		if len(g.exBuf) > 0 {
-			g.exBuf = g.exBuf[:len(g.exBuf)-1]
-		}
-		return
-	}
-	if k.R != 0 {
-		g.exBuf = append(g.exBuf, k.R)
-	}
-}
-
 // RestartCurrent 는 "지금 하던 것을 strokes=0 으로 다시"에 해당하는 단일
 // 진입점이다 — :restart/:e! ex-command 와 RESET 버튼(cmd/web 의
 // vimquestReset)이 반드시 이 함수 하나를 거쳐야 한다. 예전에 이 로직을
@@ -247,39 +223,6 @@ func (g *Game) RestartCurrent() {
 		g.EnterArena()
 	default:
 		g.LoadLevel(g.levelIdx)
-	}
-}
-
-// runExCommand 는 확정된 ex-command 문자열을 해석해 실행한다.
-// 인식하지 못한 명령은 조용히 무시한다(터미널처럼 무반응 — 에러 팝업 없음).
-func (g *Game) runExCommand(cmd string) {
-	switch {
-	case cmd == "q" || cmd == "levels":
-		if g.state == StateDrill {
-			// 드릴 중엔 바로 레벨 선택으로 나가지 않고, 이번 세션 통계를 한 번
-			// 보여준다 — drillStreak/drillTotalKeys/drillTotalPar 는 세션 내내
-			// 누적돼 온 값이라 여기서 다시 계산할 필요 없이 그대로 읽으면 된다.
-			g.state = StateDrillSummary
-		} else {
-			g.EnterLevelSelect()
-		}
-	case cmd == "restart" || cmd == "e!":
-		g.RestartCurrent()
-	case cmd == "help":
-		platform.ShowOverlay("intro")
-	case cmd == "drill" || strings.HasPrefix(cmd, "drill "):
-		// 아레나 도중 모드 전환은 무시한다(미인식 명령과 같은 무반응 원칙) —
-		// 허용하면 아레나 패널·타이머 아래에 드릴이 깔리는 화면 분열이 생긴다.
-		// 런 포기는 :q(레벨 선택 이탈) 하나만 열어 둔다.
-		if g.state == StateArena {
-			return
-		}
-		// ":drill w"/":drill f"/":drill x" — 인자별로 다른 생성기(drill.go).
-		g.enterDrill(strings.TrimSpace(strings.TrimPrefix(cmd, "drill")))
-	default:
-		if n, err := strconv.Atoi(cmd); err == nil && n > 0 {
-			g.ed.GotoLine(n)
-		}
 	}
 }
 
@@ -358,68 +301,6 @@ func (g *Game) Input(k engine.Key) {
 	}
 }
 
-// inputLevelSelect 는 레벨 선택 화면에서의 키 입력을 처리한다.
-// h/l = 월드 이동, j/k = 레벨 이동, cr = 입장(잠금 시 무시), esc = 복귀.
-func (g *Game) inputLevelSelect(k engine.Key) {
-	worlds := WorldGroups()
-	if len(worlds) == 0 {
-		return
-	}
-	if g.selWorld >= len(worlds) {
-		g.selWorld = len(worlds) - 1
-	}
-	if g.selLevel >= len(worlds[g.selWorld]) {
-		g.selLevel = len(worlds[g.selWorld]) - 1
-	}
-
-	switch k.R {
-	case 'h':
-		if g.selWorld > 0 {
-			g.selWorld--
-			if g.selLevel >= len(worlds[g.selWorld]) {
-				g.selLevel = len(worlds[g.selWorld]) - 1
-			}
-		}
-	case 'l':
-		if g.selWorld < len(worlds)-1 {
-			g.selWorld++
-			if g.selLevel >= len(worlds[g.selWorld]) {
-				g.selLevel = len(worlds[g.selWorld]) - 1
-			}
-		}
-	case 'j':
-		if g.selLevel < len(worlds[g.selWorld])-1 {
-			g.selLevel++
-		}
-	case 'k':
-		if g.selLevel > 0 {
-			g.selLevel--
-		}
-	}
-	if k.S == "cr" {
-		idx := worlds[g.selWorld][g.selLevel]
-		if g.progress[levels[idx].ID].Unlocked {
-			g.LoadLevel(idx)
-		}
-	}
-	if k.S == "esc" {
-		g.state = StatePlaying
-	}
-}
-
-// EnterLevelSelect 는 레벨 선택 화면으로 전환하며 커서를 현재 레벨 위치로 맞춘다.
-func (g *Game) EnterLevelSelect() {
-	g.state = StateLevelSelect
-	g.selWorld, g.selLevel = 0, 0
-	for wi, group := range WorldGroups() {
-		for li, idx := range group {
-			if idx == g.levelIdx {
-				g.selWorld, g.selLevel = wi, li
-			}
-		}
-	}
-}
-
 func (g *Game) checkWin() {
 	if g.lv.Kind == "navigate" {
 		pos := [2]int{g.ed.Row(), g.ed.Col()}
@@ -428,7 +309,7 @@ func (g *Game) checkWin() {
 			g.fireEvent("key", pos[0], pos[1])
 		}
 		cell := g.cellAt(g.ed.Row(), g.ed.Col())
-		if len(g.keyPos) == 0 && g.PestsLeft() == 0 && cell == '$' {
+		if len(g.keyPos) == 0 && g.BugsLeft() == 0 && cell == '$' {
 			g.advanceCurrent()
 		}
 		return

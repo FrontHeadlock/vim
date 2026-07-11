@@ -1,7 +1,5 @@
 package engine
 
-import "strings"
-
 // search.go — "/foo<cr>" 검색 쿼리 입력을 처리하는 pseudo-mode. Normal/Insert/
 // Visual 상태 머신과 완전히 분리해 Feed() 최상단에서 가로챈다(editor.go).
 
@@ -50,20 +48,60 @@ func (e *Editor) jumpToMatch(query string, dir rune, reverse bool) {
 	}
 }
 
+// runesIndex 는 l 에서 from 이후(포함) q 가 처음 나타나는 rune 인덱스를
+// 돌려준다(없으면 -1). strings.Index 를 안 쓰는 이유: 버퍼는 [][]rune 이고
+// e.col 은 rune 인덱스라, string 변환 후 byte 오프셋을 그대로 col 에 대입하면
+// 멀티바이트 문자(한글 등)가 있는 줄에서 커서가 엉뚱한 열로 간다(감사 A2).
+// 퍼즐 버퍼는 수십 rune 이라 단순 이중 루프로 충분하다.
+func runesIndex(l, q []rune, from int) int {
+	if from < 0 {
+		from = 0
+	}
+	for c := from; c+len(q) <= len(l); c++ {
+		if runesMatchAt(l, q, c) {
+			return c
+		}
+	}
+	return -1
+}
+
+// runesLastIndex 는 l[:end] 안에서 q 가 마지막으로 나타나는 rune 인덱스를
+// 돌려준다(없으면 -1) — 매치는 end 이전에 끝나야 한다(strings.LastIndex 의
+// line[:end] 슬라이싱과 동일한 의미).
+func runesLastIndex(l, q []rune, end int) int {
+	if end > len(l) {
+		end = len(l)
+	}
+	for c := end - len(q); c >= 0; c-- {
+		if runesMatchAt(l, q, c) {
+			return c
+		}
+	}
+	return -1
+}
+
+// runesMatchAt 은 l 의 c 위치에서 q 가 그대로 이어지는지 — 호출자가 c 의
+// 범위(c+len(q) ≤ len(l))를 보장한다.
+func runesMatchAt(l, q []rune, c int) bool {
+	for i := range q {
+		if l[c+i] != q[i] {
+			return false
+		}
+	}
+	return true
+}
+
 func (e *Editor) searchForward(query string) {
+	q := []rune(query)
 	n := len(e.lines)
 	for i := 0; i <= n; i++ { // n+1 회: 현재 줄 포함 한 바퀴
 		r := (e.row + i) % n
-		line := string(e.lines[r])
 		start := 0
 		if i == 0 {
 			start = e.col + 1
 		}
-		if start > len(line) {
-			continue
-		}
-		if idx := strings.Index(line[start:], query); idx >= 0 {
-			e.row, e.col = r, start+idx
+		if idx := runesIndex(e.lines[r], q, start); idx >= 0 {
+			e.row, e.col = r, idx
 			e.dcol = e.col
 			return
 		}
@@ -71,18 +109,15 @@ func (e *Editor) searchForward(query string) {
 }
 
 func (e *Editor) searchBackward(query string) {
+	q := []rune(query)
 	n := len(e.lines)
 	for i := 0; i <= n; i++ {
 		r := ((e.row-i)%n + n) % n
-		line := string(e.lines[r])
-		end := len(line)
+		end := len(e.lines[r])
 		if i == 0 {
 			end = e.col
 		}
-		if end < 0 {
-			continue
-		}
-		if idx := strings.LastIndex(line[:end], query); idx >= 0 {
+		if idx := runesLastIndex(e.lines[r], q, end); idx >= 0 {
 			e.row, e.col = r, idx
 			e.dcol = e.col
 			return

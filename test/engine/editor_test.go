@@ -311,6 +311,21 @@ func TestParseKeysUTF8(t *testing.T) {
 	}
 }
 
+// TestSearchMultibyteLine 은 멀티바이트 문자가 섞인 줄에서 검색 착지 열이
+// rune 인덱스로 정확한지 확인한다 — 예전 구현은 string 변환 후 byte 오프셋을
+// 그대로 col 에 대입해, 한글 앞에 놓인 대상은 3배쯤 뒤 열로 튀었다(감사 A2).
+func TestSearchMultibyteLine(t *testing.T) {
+	e := NewEditor([]string{"한글 뒤 target 이후"})
+	feedKeys(e, "/target<cr>")
+	if e.Col() != 5 { // rune 인덱스: 한(0)글(1) (2)뒤(3) (4)t(5)
+		t.Fatalf("멀티바이트 줄 검색: col=%d want 5 (rune 인덱스)", e.Col())
+	}
+	feedKeys(e, "0?이후<cr>")
+	if e.Row() != 0 || e.Col() != 12 {
+		t.Fatalf("멀티바이트 역검색: row=%d col=%d want 0,12", e.Row(), e.Col())
+	}
+}
+
 func TestSearchEscCancels(t *testing.T) {
 	e := NewEditor([]string{"abc"})
 	r0, c0 := e.Row(), e.Col()

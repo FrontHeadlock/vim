@@ -6,6 +6,7 @@ import (
 	"syscall/js"
 
 	"vimquest/internal/game"
+	"vimquest/internal/store"
 )
 
 var vq *game.Game
@@ -24,18 +25,17 @@ func toJS(v any) js.Value {
 			a.SetIndex(i, toJS(vv))
 		}
 		return a
-	case string:
-		return js.ValueOf(x)
-	case int:
-		return js.ValueOf(x)
-	case bool:
+	case string, int, bool, int64, float64:
+		// int64/float64 는 현재 스냅샷엔 없지만 미리 처리한다 — default 로
+		// 흘리면 값이 조용히 null 로 붕괴해, 필드를 추가한 쪽에서 원인을
+		// 추적하기 힘든 무증상 렌더 버그가 된다.
 		return js.ValueOf(x)
 	}
 	return js.Null()
 }
 
 func Run() {
-	vq = game.New()
+	vq = game.New(store.New()) // js 빌드 태그 → localStorage 구현(store_js.go)
 
 	js.Global().Set("vqInput", js.FuncOf(func(_ js.Value, args []js.Value) any {
 		if len(args) > 0 {

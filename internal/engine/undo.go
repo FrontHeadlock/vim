@@ -3,7 +3,7 @@ package engine
 // undo.go — undo/redo 스택.
 
 // UndoCap 은 undo 스택 깊이 상한(B1). 웹 빌드는 -gc=leaking 이라 세션 내
-// 회수가 없어(build.sh 참고, drill.go 의 drillMaxRounds 와 같은 이유) 매 변경마다
+// 회수가 없어(build.sh 참고, drill.go 의 DrillMaxRounds 와 같은 이유) 매 변경마다
 // 전체 버퍼 클론을 상한 없이 쌓으면 세션이 길어질수록 누적된다. 퍼즐 버퍼는
 // 수 줄이라 100 이면 충분히 넉넉하다.
 const UndoCap = 100

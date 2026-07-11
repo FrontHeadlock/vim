@@ -139,15 +139,18 @@ func TestFileStoreCorruptFileSalvages(t *testing.T) {
 	}
 }
 
-// TestNewIsIsolatedUnderTest 는 go test 하에서 New() 가 실제 저장 파일을
-// 건드리지 않는 인메모리 구현을 돌려주는지 행동으로 확인한다: 인스턴스 간
-// 상태가 공유되지 않아야 한다(파일 스토어라면 Save 가 다음 New().Load() 에
-// 보인다). 이게 깨지면 모든 헤드리스 테스트가 이 머신의 실제 저장 상태에
-// 의존하게 된다.
-func TestNewIsIsolatedUnderTest(t *testing.T) {
-	s1 := store.New()
+// TestNewMemInstancesAreIsolated 는 NewMem() 인스턴스 간 상태가 공유되지
+// 않음을 확인한다 — 테스트 격리는 이제 store.New() 의 암묵 감지(과거
+// testing.Testing())가 아니라, 각 테스트가 NewMem() 을 명시적으로 주입하는
+// 것으로 보장되므로, 그 주입 단위가 서로 독립이라는 게 격리의 전제다.
+func TestNewMemInstancesAreIsolated(t *testing.T) {
+	s1 := store.NewMem()
 	s1.Save(map[string]store.LevelProgress{"1-1": {Unlocked: true, BestStrokes: 5, Stars: 3}})
-	if got := store.New().Load(); len(got) != 0 {
-		t.Fatalf("go test 하에서 New() 인스턴스 간 상태가 공유됨(파일 스토어로 의심): %v", got)
+	if got := store.NewMem().Load(); len(got) != 0 {
+		t.Fatalf("NewMem 인스턴스 간 상태가 공유됨: %v", got)
+	}
+	// 같은 인스턴스 안에서는 Save→Load 왕복이 값 그대로여야 한다.
+	if got := s1.Load(); got["1-1"].BestStrokes != 5 {
+		t.Fatalf("NewMem Save→Load 왕복 실패: %v", got)
 	}
 }

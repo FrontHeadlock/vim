@@ -10,6 +10,7 @@ import (
 
 	"vimquest/internal/engine"
 	"vimquest/internal/game"
+	"vimquest/internal/store"
 )
 
 const (
@@ -69,7 +70,7 @@ func (a *app) Layout(int, int) (int, int) { return screenW, screenH }
 func main() {
 	ebiten.SetWindowSize(screenW, screenH)
 	ebiten.SetWindowTitle(gameName)
-	if err := ebiten.RunGame(&app{g: game.New()}); err != nil {
+	if err := ebiten.RunGame(&app{g: game.New(store.New())}); err != nil {
 		panic(err)
 	}
 }
