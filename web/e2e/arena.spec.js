@@ -47,13 +47,24 @@ async function stubArenaApi(page) {
         json: {
           ok: true, best_ms: body.ms, rank: 2, total: 3,
           next_id: 'stub-champ', next_gap_ms: 1234,
+          daily: {
+            day: '2026-07-11', best_ms: body.ms, rank: 2, total: 3,
+            next_id: 'stub-today', next_gap_ms: 800,
+          },
         },
       });
       return;
     }
-    // ?me= 가 붙으면 상위권 밖의 내 행을 함께 돌려준다(서버와 동일 계약).
-    const json = { scores: [{ rank: 1, id: 'stub-champ', ms: 41000 }], total: 3 };
-    if (req.url().includes('me=e2e-player')) {
+    // 보드별 응답 — TODAY 는 day/어제의 챔피언까지(서버와 동일 계약).
+    // ?me= 가 붙으면 상위권 밖의 내 행을 함께 돌려준다.
+    const url = req.url();
+    const json = url.includes('board=daily')
+      ? {
+          scores: [{ rank: 1, id: 'stub-today', ms: 45000 }], total: 2,
+          day: '2026-07-11', yesterday: { rank: 1, id: 'stub-yday', ms: 39000 },
+        }
+      : { scores: [{ rank: 1, id: 'stub-champ', ms: 41000 }], total: 3 };
+    if (url.includes('me=e2e-player')) {
       json.me = { rank: 2, id: 'e2e-player', ms: 42234 };
     }
     await route.fulfill({ json });
@@ -131,13 +142,24 @@ test('START → 5문제 완주 → 제출 → 리더보드 렌더', async ({ pag
   expect(submitted[0].id).toBe('e2e-player');
   expect(submitted[0].ms).toBeGreaterThan(0);
 
-  // 제출 응답의 경쟁 컨텍스트가 한 줄로 표시된다 — 분모 있는 순위와 추격 대상.
-  await expect(page.locator('#arena-msg')).toContainText('rank #2/3');
-  await expect(page.locator('#arena-msg')).toContainText('next: stub-champ');
+  // 제출 응답의 경쟁 컨텍스트가 한 줄로 표시된다 — 오늘 순위·오늘의 추격
+  // 대상이 먼저, all-time 은 분모만 짧게.
+  await expect(page.locator('#arena-msg')).toContainText('today #2/3');
+  await expect(page.locator('#arena-msg')).toContainText('next: stub-today');
+  await expect(page.locator('#arena-msg')).toContainText('all-time #2/3');
 
-  // 리더보드 — 상위권 + '⋯' 아래 내 행이 YOU 로 하이라이트되고 참가자 수가 붙는다.
-  await expect(page.locator('#arena-lb td', { hasText: 'stub-champ' })).toBeVisible();
+  // 기본 보드는 TODAY — 날짜·어제의 챔피언 메타와 오늘 상위권, '⋯' 아래 내
+  // 행(YOU 하이라이트), 참가자 수가 함께 그려진다.
+  await expect(page.locator('#arena-board-meta')).toContainText('2026-07-11');
+  await expect(page.locator('#arena-board-meta')).toContainText("yesterday's champion: stub-yday");
+  await expect(page.locator('#arena-lb td', { hasText: 'stub-today' })).toBeVisible();
   await expect(page.locator('#arena-lb tr.me td', { hasText: 'e2e-player ◀ YOU' })).toBeVisible();
+  await expect(page.locator('#arena-lb tr.total td')).toContainText('2 players');
+
+  // ALL-TIME 탭 — 명예의 전당으로 전환된다.
+  await page.locator('#arena-board-alltime').click();
+  await expect(page.locator('#arena-board-meta')).toContainText('all-time hall of fame');
+  await expect(page.locator('#arena-lb td', { hasText: 'stub-champ' })).toBeVisible();
   await expect(page.locator('#arena-lb tr.total td')).toContainText('3 players');
 
   // ID 는 localStorage 에 저장돼 다음 방문 시 프리필된다.

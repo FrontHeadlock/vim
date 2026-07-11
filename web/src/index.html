@@ -114,6 +114,9 @@
   }
   #arena-id:focus{ border-color:var(--cyan); }
   #arena-msg{ margin-top:8px; font-size:17px; color:var(--muted); min-height:20px; }
+  #arena-board-tabs{ margin-top:12px; display:flex; gap:6px; align-items:baseline; }
+  /* 보드 메타 — TODAY 의 날짜·리셋 안내와 어제의 챔피언 한 줄(터미널 어법). */
+  #arena-board-meta{ margin-top:6px; font-size:16px; color:var(--muted); min-height:18px; }
   #arena-lb{ margin-top:10px; width:100%; border-collapse:collapse; font-size:18px; }
   #arena-lb td, #arena-lb th{ padding:4px 6px; border-bottom:1px solid var(--line2); text-align:left; }
   #arena-lb th{ color:var(--yellow); font-family:var(--pixel); font-size:10px; }
@@ -363,6 +366,11 @@
         </div>
       </div>
       <div id="arena-msg"></div>
+      <div id="arena-board-tabs">
+        <button class="btn sm active" id="arena-board-daily" onclick="vqArenaSetBoard('daily')">TODAY</button>
+        <button class="btn sm" id="arena-board-alltime" onclick="vqArenaSetBoard('alltime')">ALL-TIME</button>
+      </div>
+      <div id="arena-board-meta"></div>
       <table id="arena-lb"></table>
     </div>
   </div>
