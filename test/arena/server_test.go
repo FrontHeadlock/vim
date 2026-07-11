@@ -141,6 +141,7 @@ func TestSubmitValidation(t *testing.T) {
 		{"ms 음수", `{"id":"x","ms":-5}`},
 		{"ms 24h 초과", `{"id":"x","ms":86400001}`},
 		{"JSON 깨짐", `{"id":`},
+		{"바디 1KB 초과", fmt.Sprintf(`{"id":%q,"ms":1000}`, strings.Repeat("a", 2048))}, // MaxBytesReader 상한
 	}
 	for _, c := range cases {
 		code, out := submit(t, srv, c.body)
@@ -255,5 +256,88 @@ func TestCORSAndMethods(t *testing.T) {
 	postResp.Body.Close()
 	if postResp.StatusCode != http.StatusMethodNotAllowed {
 		t.Errorf("POST leaderboard → %d, want 405", postResp.StatusCode)
+	}
+}
+
+// leaderboardRaw 는 리더보드 응답 전체(map)를 돌려준다 — scores 배열 밖의
+// 컨텍스트 필드(total/me)를 검증하는 용도.
+func leaderboardRaw(t *testing.T, srv *httptest.Server, query string) map[string]any {
+	t.Helper()
+	resp, err := http.Get(srv.URL + "/api/arena/leaderboard" + query)
+	if err != nil {
+		t.Fatalf("GET leaderboard: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("leaderboard status=%d", resp.StatusCode)
+	}
+	var out map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	return out
+}
+
+// TestSubmitRankContext 는 제출 응답의 경쟁 컨텍스트를 확인한다 — 전체
+// 참가자 수(total), 그리고 1위가 아니면 바로 위 기록까지의 격차
+// (next_id/next_gap_ms). 1위에게는 next_* 가 없어야 한다.
+func TestSubmitRankContext(t *testing.T) {
+	srv := newServer(t)
+
+	code, out := submit(t, srv, `{"id":"leader","ms":40000}`)
+	if code != http.StatusOK {
+		t.Fatalf("1차 제출 code=%d", code)
+	}
+	if out["total"] != float64(1) {
+		t.Errorf("1인 제출 후 total=%v, want 1", out["total"])
+	}
+	if _, has := out["next_id"]; has {
+		t.Errorf("1위 응답에 next_id 가 있음: %v", out)
+	}
+
+	_, out = submit(t, srv, `{"id":"chaser","ms":41500}`)
+	if out["rank"] != float64(2) || out["total"] != float64(2) {
+		t.Fatalf("2위 컨텍스트: rank=%v total=%v, want 2/2", out["rank"], out["total"])
+	}
+	if out["next_id"] != "leader" {
+		t.Errorf("next_id=%v, want leader", out["next_id"])
+	}
+	if out["next_gap_ms"] != float64(1500) {
+		t.Errorf("next_gap_ms=%v, want 1500", out["next_gap_ms"])
+	}
+
+	// 격차는 재신고가 아니라 서버에 남은 best 기준 — 더 느린 재제출에도
+	// next_gap_ms 가 기존 best(41500) 기준으로 유지돼야 한다.
+	_, out = submit(t, srv, `{"id":"chaser","ms":90000}`)
+	if out["next_gap_ms"] != float64(1500) {
+		t.Errorf("나쁜 재제출 후 next_gap_ms=%v, want 1500(best 기준)", out["next_gap_ms"])
+	}
+}
+
+// TestLeaderboardMeContext 는 ?me= 조회를 확인한다 — 상위 limit 밖 참가자의
+// 자기 행 포함, 없는 id 는 생략, total 은 항상 포함.
+func TestLeaderboardMeContext(t *testing.T) {
+	srv := newServer(t)
+	for i := 0; i < 5; i++ {
+		submit(t, srv, fmt.Sprintf(`{"id":"p%d","ms":%d}`, i, 40000+i*1000))
+	}
+
+	out := leaderboardRaw(t, srv, "?limit=3&me=p4")
+	if out["total"] != float64(5) {
+		t.Errorf("total=%v, want 5", out["total"])
+	}
+	if len(out["scores"].([]any)) != 3 {
+		t.Fatalf("scores 길이=%d, want 3", len(out["scores"].([]any)))
+	}
+	me, ok := out["me"].(map[string]any)
+	if !ok {
+		t.Fatalf("me 행이 없음: %v", out)
+	}
+	if me["rank"] != float64(5) || me["id"] != "p4" || me["ms"] != float64(44000) {
+		t.Errorf("me=%v, want rank5/p4/44000", me)
+	}
+
+	if out := leaderboardRaw(t, srv, "?me=ghost"); out["me"] != nil {
+		t.Errorf("없는 id 의 me 가 생략되지 않음: %v", out["me"])
 	}
 }

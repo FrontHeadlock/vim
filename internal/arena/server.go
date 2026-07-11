@@ -16,6 +16,10 @@ const (
 	defaultLim = 50
 	minLim     = 1
 	maxLim     = 200
+	// maxBodyBytes 는 제출 바디의 크기 상한. 유효한 바디는 id ≤32 rune +
+	// ms int64 로 수백 바이트를 넘지 않는다 — 인증 없는 신뢰 모델과 무관한
+	// 메모리 위생(거대 바디로 디코더를 부풀리는 것 차단)이다.
+	maxBodyBytes = 1 << 10
 )
 
 // NewHandler 는 db 를 물린 Arena HTTP API 를 만든다. 모든 응답에 개방형
@@ -62,6 +66,7 @@ func handleScore(db *sql.DB) http.HandlerFunc {
 			writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 			return
 		}
+		r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
 		var req scoreReq
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid json")
@@ -104,11 +109,28 @@ func handleScore(db *sql.DB) http.HandlerFunc {
 			writeError(w, http.StatusInternalServerError, "store failed")
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{
+		total, err := totalPlayers(db)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "store failed")
+			return
+		}
+		out := map[string]any{
 			"ok":      true,
 			"best_ms": best,
 			"rank":    rank,
-		})
+			"total":   total,
+		}
+		// 다음 추격 대상 — 1위가 아니면 "바로 위 기록까지 몇 초"를 함께
+		// 돌려준다. 격차는 재신고 시간이 아니라 서버에 남은 best 기준이라
+		// 제출 직후 리더보드 표시와 항상 정합.
+		if nid, gap, ok, err := nextTarget(db, best); err != nil {
+			writeError(w, http.StatusInternalServerError, "store failed")
+			return
+		} else if ok {
+			out["next_id"] = nid
+			out["next_gap_ms"] = gap
+		}
+		writeJSON(w, http.StatusOK, out)
 	}
 }
 
@@ -132,6 +154,23 @@ func handleLeaderboard(db *sql.DB) http.HandlerFunc {
 			writeError(w, http.StatusInternalServerError, "store failed")
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"scores": scores})
+		total, err := totalPlayers(db)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "store failed")
+			return
+		}
+		out := map[string]any{"scores": scores, "total": total}
+		// ?me=<id> — 상위 limit 밖의 참가자도 자기 순위 행을 받아볼 수 있게
+		// 한다("내가 지금 몇 등인지"가 보여야 추격할 마음이 생긴다). 없는
+		// id 는 조용히 생략 — 검증 에러가 아니라 "아직 기록 없음"이다.
+		if me := strings.TrimSpace(r.URL.Query().Get("me")); me != "" {
+			if s, ok, err := scoreFor(db, me); err != nil {
+				writeError(w, http.StatusInternalServerError, "store failed")
+				return
+			} else if ok {
+				out["me"] = s
+			}
+		}
+		writeJSON(w, http.StatusOK, out)
 	}
 }

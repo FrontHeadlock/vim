@@ -82,6 +82,51 @@ func rankOf(db *sql.DB, id string) (int, error) {
 	return rank, err
 }
 
+// totalPlayers 는 기록을 가진 전체 참가자 수를 돌려준다 — "#4/27" 처럼
+// 순위에 분모를 붙이는 사회적 증거(social proof)용.
+func totalPlayers(db *sql.DB) (int, error) {
+	var n int
+	err := db.QueryRow(`SELECT COUNT(*) FROM arena_scores`).Scan(&n)
+	return n, err
+}
+
+// nextTarget 은 ms 보다 빠른 기록 중 가장 느린 것 — 즉 리더보드에서 바로
+// 위에 보이는 "다음 추격 대상"을 돌려준다. ok=false 면 위가 없다(1위).
+// 동률 그룹 안에서는 updated_at DESC — topScores 의 표시 순서(updated_at
+// ASC)에서 그 그룹의 마지막 행, 곧 시각적으로 바로 위 행과 일치한다.
+func nextTarget(db *sql.DB, ms int64) (id string, gap int64, ok bool, err error) {
+	var best int64
+	err = db.QueryRow(`
+		SELECT player_id, best_ms FROM arena_scores
+		WHERE best_ms < ? ORDER BY best_ms DESC, updated_at DESC LIMIT 1
+	`, ms).Scan(&id, &best)
+	if err == sql.ErrNoRows {
+		return "", 0, false, nil
+	}
+	if err != nil {
+		return "", 0, false, err
+	}
+	return id, ms - best, true, nil
+}
+
+// scoreFor 는 id 의 현재 기록을 순위까지 채워 돌려준다 — 리더보드 상위권
+// 밖의 참가자에게도 자기 행(?me=)을 보여주기 위한 조회. 없는 id 면
+// ok=false.
+func scoreFor(db *sql.DB, id string) (Score, bool, error) {
+	best, err := bestFor(db, id)
+	if err == sql.ErrNoRows {
+		return Score{}, false, nil
+	}
+	if err != nil {
+		return Score{}, false, err
+	}
+	rank, err := rankOf(db, id)
+	if err != nil {
+		return Score{}, false, err
+	}
+	return Score{Rank: rank, ID: id, MS: best}, true, nil
+}
+
 // topScores 는 빠른 순으로 상위 limit 개의 기록을 돌려준다.
 func topScores(db *sql.DB, limit int) ([]Score, error) {
 	rows, err := db.Query(`
